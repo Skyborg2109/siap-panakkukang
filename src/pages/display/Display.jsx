@@ -139,8 +139,7 @@ export default function Display() {
       const called = queues
         .filter((q) => q.service_id === s.id && ['CALLED', 'SERVING'].includes(q.status))
         .sort((a, b) => new Date(b.called_at || b.updated_at) - new Date(a.called_at || a.updated_at))[0]
-      const waiting = queues.filter((q) => q.service_id === s.id && q.status === 'WAITING').length
-      return { service: s, called, waiting }
+      return { service: s, called }
     })
   }, [services, queues])
 
@@ -250,7 +249,7 @@ export default function Display() {
         {/* Kanan: kartu panggilan per jenis antrean */}
         <div className="grid gap-3 content-start lg:content-stretch lg:auto-rows-fr lg:h-full min-h-0 overflow-hidden">
           {perService.length === 0 && <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400">Belum ada jenis antrean aktif.</div>}
-          {perService.map(({ service, called, waiting }) => (
+          {perService.map(({ service, called }) => (
             <div key={service.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm px-6 py-4 text-center flex flex-col min-h-0 h-full overflow-hidden">
               <div>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 border border-orange-200 px-3 py-1.5 text-xs font-bold tracking-wider text-orange-700 uppercase leading-none">
@@ -262,7 +261,9 @@ export default function Display() {
                 <div className="flex-1 min-h-0 flex flex-col justify-center">
                   <div className="text-sm font-bold tracking-wider text-slate-500 mt-2 uppercase">{service.name}</div>
                   <div className="font-extrabold text-[clamp(2rem,6.5vh,3.5rem)] leading-tight tracking-tight text-slate-900 tabular-nums mt-0.5">{called.number}</div>
-                  <div className="text-sm text-slate-500 mt-1.5 truncate">{hasRealName(called.name) ? <>a.n. <b className="text-slate-700">{String(called.name).trim()}</b> · </> : null}<span className="tabular-nums">{waiting}</span> menunggu</div>
+                  {hasRealName(called.name) && (
+                    <div className="text-sm text-slate-500 mt-1.5 truncate">a.n. <b className="text-slate-700">{String(called.name).trim()}</b></div>
+                  )}
                 </div>
               ) : (
                 <div className="flex-1 min-h-0 flex flex-col justify-center">
@@ -270,11 +271,11 @@ export default function Display() {
                   <div className="font-extrabold text-[clamp(1.6rem,5vh,2.5rem)] leading-8 text-slate-300 mt-1 tracking-tight">Menunggu</div>
                 </div>
               )}
-              <div className="border-t border-slate-100 mt-3 pt-2.5 text-sm tabular-nums">
-                {called
-                  ? <span className="font-semibold text-orange-700">Sedang Dilayani di Ruang Pelayanan</span>
-                  : <span className="text-slate-400">{waiting} antrean menunggu</span>}
-              </div>
+              {called && (
+                <div className="border-t border-slate-100 mt-3 pt-2.5 text-sm tabular-nums">
+                  <span className="font-semibold text-orange-700">Sedang Dilayani di Ruang Pelayanan</span>
+                </div>
+              )}
             </div>
           ))}
         </div>

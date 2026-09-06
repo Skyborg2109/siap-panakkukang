@@ -28,7 +28,6 @@ function GovBrand() {
         <div className="font-extrabold text-white text-sm tracking-wide">SIAP</div>
         <div className="text-[10px] font-bold tracking-[0.18em] text-orange-400">PANAKKUKANG</div>
       </div>
-      <span className="badge bg-amber-400/90 text-amber-950 ml-auto shrink-0 !text-[10px]">v3.0</span>
     </div>
   )
 }
@@ -215,7 +214,10 @@ export function DashboardLayout({ children, menu, title, subtitle, eyebrow = 'PE
             ))}
           </div>
         </nav>
-        <div className="pt-3">
+        <div className="pt-3 space-y-2">
+          <div className="flex justify-center">
+            <span className="badge bg-amber-400/90 text-amber-950 !text-[10px]">v3.0</span>
+          </div>
           <UserCard />
         </div>
       </aside>
