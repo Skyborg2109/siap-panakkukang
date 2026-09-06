@@ -2,7 +2,6 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import PublicLayout from '../layouts/layouts.jsx'
 import { useAuthStore } from '../stores/authStore.js'
 
-import Home from '../pages/public/Home.jsx'
 import Information from '../pages/public/Information.jsx'
 import IKD from '../pages/public/IKD.jsx'
 import Display from '../pages/display/Display.jsx'
@@ -35,7 +34,7 @@ const pub = (el) => <PublicLayout>{el}</PublicLayout>
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={pub(<Home />)} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/information" element={pub(<Information />)} />
       <Route path="/ikd" element={pub(<IKD />)} />
       <Route path="/login" element={<Login />} />
@@ -54,7 +53,7 @@ export default function AppRoutes() {
       <Route path="/admin/display" element={<RequireAuth roles={['ADMIN']}><AdminDisplay /></RequireAuth>} />
       <Route path="/admin/statistics" element={<RequireAuth roles={['ADMIN']}><AdminStatistics /></RequireAuth>} />
 
-      <Route path="*" element={pub(<div className="card p-10 text-center"><h1 className="text-2xl font-bold">404 — Halaman tidak ditemukan</h1><a href="/" className="text-orange-700 underline">Kembali ke beranda</a></div>)} />
+      <Route path="*" element={pub(<div className="card p-10 text-center"><h1 className="text-2xl font-bold">404 — Halaman tidak ditemukan</h1><a href="/login" className="text-orange-700 underline">Kembali ke halaman login</a></div>)} />
     </Routes>
   )
 }

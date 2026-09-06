@@ -165,7 +165,7 @@ export default function Display() {
           <div className="hidden sm:flex gap-2 no-print">
             <button onClick={toggle} className="p-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Suara">{enabled ? <Volume2 size={18} /> : <VolumeX size={18} />}</button>
             <button onClick={() => document.documentElement.requestFullscreen?.()} className="p-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Fullscreen"><Maximize size={18} /></button>
-            <Link to="/" className="p-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Beranda"><Info size={18} /></Link>
+            <Link to="/information" className="p-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Informasi"><Info size={18} /></Link>
           </div>
         </div>
         <div className="h-[3px] bg-orange-500" />

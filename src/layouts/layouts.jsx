@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { MonitorPlay, Info, Fingerprint, LogIn, Home, LogOut, ExternalLink, Menu, X } from 'lucide-react'
+import { MonitorPlay, Info, Fingerprint, LogIn, LogOut, ExternalLink, Menu, X } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore.js'
 import { logout } from '../services/authService.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
@@ -125,7 +125,6 @@ export default function PublicLayout({ children }) {
         </div>
         <div className="h-[3px] bg-orange-500" />
         <div className="max-w-6xl mx-auto px-4 py-2 hidden md:flex items-center gap-1 text-sm font-medium text-slate-600">
-          <Link to="/" className="px-3 py-1.5 rounded-lg hover:bg-slate-100">Beranda</Link>
           <Link to="/information" className="px-3 py-1.5 rounded-lg hover:bg-slate-100">Informasi</Link>
           <Link to="/ikd" className="px-3 py-1.5 rounded-lg hover:bg-slate-100">IKD</Link>
           <div className="flex-1" />
@@ -139,7 +138,6 @@ export default function PublicLayout({ children }) {
           )}
         </div>
         <div className="md:hidden border-t border-slate-100 px-4 py-2 flex gap-2 overflow-x-auto text-sm text-slate-600">
-          <Link to="/" className="flex items-center gap-1 px-2 py-1.5"><Home size={15} /> Beranda</Link>
           <Link to="/information" className="flex items-center gap-1 px-2 py-1.5"><Info size={15} /> Info</Link>
           <Link to="/ikd" className="flex items-center gap-1 px-2 py-1.5"><Fingerprint size={15} /> IKD</Link>
           <Link to="/display" className="flex items-center gap-1 px-2 py-1.5"><MonitorPlay size={15} /> TV</Link>
