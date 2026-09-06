@@ -215,7 +215,7 @@ export function DashboardLayout({ children, menu, title, subtitle, eyebrow = 'PE
             ))}
           </div>
         </nav>
-        <div className="hidden md:block pt-3">
+        <div className="pt-3">
           <UserCard />
         </div>
       </aside>
