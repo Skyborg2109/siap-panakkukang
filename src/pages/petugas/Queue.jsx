@@ -6,7 +6,7 @@ import {
 import { DashboardLayout } from '../../layouts/layouts.jsx'
 import {
   getTodayQueueList, recallQueue, skipQueue,
-  setStatus, resetToday, callDirect, callNext,
+  setStatus, resetToday, callDirectMany, callNext,
 } from '../../services/queueService.js'
 import { getServices } from '../../services/masterService.js'
 import { callKKCase, sendBroadcast } from '../../services/displayService.js'
@@ -191,16 +191,22 @@ export default function PetugasQueue() {
     finally { setBusy(null) }
   }
 
-  // Panggil nomor kupon langsung + nama warga opsional
-  // (belum terdaftar → dibuatkan sesuai kupon lalu dipanggil)
+  // Panggil nomor kupon langsung + nama warga opsional (satu nomor).
+  // Beberapa nomor sekaligus: pisah koma ("5,6,7") atau rentang ("5-8") —
+  // dibuatkan sesuai kupon berurutan menaik lalu dipanggil serentak.
   const handleDirect = async (e) => {
     e.preventDefault()
     const svc = specOpen
     if (!svc || !specificNum.trim()) return alert('Masukkan nomor antrean.')
     setBusy(`direct-${svc.id}`)
     try {
-      const res = await callDirect({ service: svc, number: specificNum, name: directName })
-      if (res) setSelected((prev) => ({ ...prev, [svc.id]: res.id }))
+      const res = await callDirectMany({ service: svc, raw: specificNum, name: directName })
+      if (res.length > 1) {
+        setSelected((prev) => ({ ...prev, [svc.id]: res[res.length - 1].id }))
+        flash(`Memanggil ${res.length} nomor sekaligus: ${res.map((r) => r.number).join(', ')} (${svc.name}).`)
+      } else if (res.length === 1) {
+        setSelected((prev) => ({ ...prev, [svc.id]: res[0].id }))
+      }
       setSpecOpen(null); setSpecificNum(''); setDirectName('')
       await refresh()
     } catch (err) { alert(err.message) }
@@ -307,7 +313,7 @@ export default function PetugasQueue() {
                         <>
                           <div className="text-[10px] font-bold tracking-[0.14em] text-slate-400">{actives.length} NOMOR</div>
                           <div className="flex justify-center gap-1.5 mt-2 flex-wrap">
-                            {actives.slice(0, 5).map((q) => (
+                            {actives.slice(0, 10).map((q) => (
                               <button
                                 key={q.id}
                                 onClick={() => setSelected((prev) => ({ ...prev, [svc.id]: q.id }))}
@@ -429,18 +435,18 @@ export default function PetugasQueue() {
       {/* Modal: panggil nomor kupon langsung */}
       <Modal open={!!specOpen} onClose={() => setSpecOpen(null)} title={`Panggil Nomor — ${specOpen?.name || ''}`}>
         <form onSubmit={handleDirect} className="space-y-3">
-          <p className="text-sm text-slate-500">Ketik nomor kupon (cth: {specOpen ? `${specOpen.prefix}-5` : 'KTP-5'} atau cukup 5). Nomor yang belum terdaftar dibuat otomatis lalu langsung dipanggil. Nomor harus berurutan — tidak bisa melompati nomor di bawahnya yang belum dipanggil.</p>
+          <p className="text-sm text-slate-500">Satu nomor (cth: {specOpen ? `${specOpen.prefix}-5` : 'KTP-5'} atau cukup 5) atau beberapa sekaligus: pisahkan dengan koma (cth: 5,6,7) atau rentang (cth: 5-8, maks 10 nomor). Nomor yang belum terdaftar dibuat otomatis lalu dipanggil serentak. Tetap harus berurutan — tidak bisa melompati nomor di bawahnya yang belum dipanggil.</p>
           <Field label="Nomor Antrean *">
             <input
               className="input font-mono"
               value={specificNum}
               onChange={(e) => setSpecificNum(e.target.value)}
-              placeholder={specOpen ? `${specOpen.prefix}-1` : 'KTP-1'}
+              placeholder={specOpen ? `${specOpen.prefix}-5,6,7 atau 5-8` : 'KTP-5,6,7 atau 5-8'}
             />
           </Field>
           {/* IKD: hanya input nomor, tanpa nama */}
           {(specOpen?.prefix || '').toUpperCase() !== 'IKD' && (
-            <Field label="Nama Warga (opsional)">
+            <Field label="Nama Warga (opsional, hanya untuk 1 nomor)">
               <input
                 className="input"
                 value={directName}

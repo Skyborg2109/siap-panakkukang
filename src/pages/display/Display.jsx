@@ -26,7 +26,7 @@ export default function Display() {
   const [broadcast, setBroadcast] = useState(null)
   const [slide, setSlide] = useState(0)
   const lastCalledRef = useRef('')
-  const { enabled, toggle, announceQueue, announceKK, announceBroadcast } = useSpeech()
+  const { enabled, toggle, announceQueue, announceQueues, announceKK, announceBroadcast } = useSpeech()
   const now = useClock()
 
   const refresh = useCallback(async () => {
@@ -67,15 +67,24 @@ export default function Display() {
     }
   }, [refresh])
 
-  // TTS: umumkan nomor CALLED terbaru
+  // TTS: umumkan nomor CALLED terbaru. Nomor yang dipanggil serentak (satu batch
+  // callDirectMany berbagi called_at identik) diumumkan sekaligus dalam satu kalimat.
   useEffect(() => {
-    const called = queues.filter((q) => q.status === 'CALLED' || q.status === 'SERVING').sort((a, b) => new Date(b.called_at || b.updated_at) - new Date(a.called_at || a.updated_at))[0]
-    const key = called ? `${called.id}-${called.called_at}` : ''
-    if (called && key !== lastCalledRef.current) {
+    const actives = queues.filter((q) => q.status === 'CALLED' || q.status === 'SERVING').sort((a, b) => new Date(b.called_at || b.updated_at) - new Date(a.called_at || a.updated_at))
+    const newest = actives[0]
+    if (!newest || !newest.called_at) return
+    const t = new Date(newest.called_at).getTime()
+    const companions = queues
+      .filter((q) => q.id !== newest.id && q.service_id === newest.service_id && q.status === 'CALLED' && q.called_at && new Date(q.called_at).getTime() === t)
+      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+    const batch = [newest, ...companions]
+    const key = batch.map((q) => `${q.id}@${q.called_at}`).sort().join('|')
+    if (key !== lastCalledRef.current) {
       lastCalledRef.current = key
-      announceQueue(called)
+      if (companions.length) announceQueues(batch)
+      else announceQueue(newest)
     }
-  }, [queues, announceQueue])
+  }, [queues, announceQueue, announceQueues])
 
   // TTS: umumkan tiap panggilan KK baru tepat satu kali
   useEffect(() => {
@@ -133,13 +142,20 @@ export default function Display() {
     return () => clearInterval(t)
   }, [slides.length])
 
-  // Kartu kanan: panggilan terakhir per jenis antrean
+  // Kartu kanan: panggilan terakhir per jenis antrean + kawan satu batch
+  // (CALLED lain di layanan sama dengan called_at identik = dipanggil serentak)
   const perService = useMemo(() => {
     return services.map((s) => {
       const called = queues
         .filter((q) => q.service_id === s.id && ['CALLED', 'SERVING'].includes(q.status))
         .sort((a, b) => new Date(b.called_at || b.updated_at) - new Date(a.called_at || a.updated_at))[0]
-      return { service: s, called }
+      const companions = called?.called_at
+        ? queues
+          .filter((q) => q.id !== called.id && q.service_id === s.id && q.status === 'CALLED' && q.called_at && new Date(q.called_at).getTime() === new Date(called.called_at).getTime())
+          .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+          .slice(0, 4)
+        : []
+      return { service: s, called, companions }
     })
   }, [services, queues])
 
@@ -249,7 +265,7 @@ export default function Display() {
         {/* Kanan: kartu panggilan per jenis antrean */}
         <div className="grid gap-3 content-start lg:content-stretch lg:auto-rows-fr lg:h-full min-h-0 overflow-hidden">
           {perService.length === 0 && <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400">Belum ada jenis antrean aktif.</div>}
-          {perService.map(({ service, called }) => (
+          {perService.map(({ service, called, companions }) => (
             <div key={service.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm px-6 py-4 text-center flex flex-col min-h-0 h-full overflow-hidden">
               <div>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 border border-orange-200 px-3 py-1.5 text-xs font-bold tracking-wider text-orange-700 uppercase leading-none">
@@ -263,6 +279,16 @@ export default function Display() {
                   <div className="font-extrabold text-[clamp(2rem,6.5vh,3.5rem)] leading-tight tracking-tight text-slate-900 tabular-nums mt-0.5">{called.number}</div>
                   {hasRealName(called.name) && (
                     <div className="text-sm text-slate-500 mt-1.5 truncate">a.n. <b className="text-slate-700">{String(called.name).trim()}</b></div>
+                  )}
+                  {companions.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-[10px] font-bold tracking-[0.14em] text-slate-400">JUGA DIPANGGIL</div>
+                      <div className="flex justify-center gap-1.5 mt-1 flex-wrap">
+                        {companions.map((c) => (
+                          <span key={c.id} className="rounded-md bg-orange-50 border border-orange-200 px-2 py-0.5 text-xs font-extrabold tabular-nums text-orange-700">{c.number}</span>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               ) : (

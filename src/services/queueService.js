@@ -130,12 +130,46 @@ function ensureSequentialCall(service, seq, rows) {
   }
 }
 
+// Batas nomor dalam sekali panggil serentak (cegah spam panggil + TTS kepanjangan)
+export const MAX_BATCH_CALL = 10
+
+// Parse input multi-nomor: "5", "KTP-5", "5,6,7", "5-8", "KTP-5, 7-8".
+// Kembalian: array nomor penuh terurut menaik tanpa duplikat.
+export function parseQueueNumbers(service, raw, max = MAX_BATCH_CALL) {
+  const text = String(raw || '').trim()
+  if (!text) throw new Error('Masukkan nomor antrean.')
+  const seqs = []
+  for (const tok of text.split(/[,;\n]+/).map((t) => t.trim()).filter(Boolean)) {
+    const range = tok.match(/^(\d{1,3})\s*-\s*(\d{1,3})$/)
+    if (range) {
+      let a = Number.parseInt(range[1], 10)
+      let b = Number.parseInt(range[2], 10)
+      if (a > b) [a, b] = [b, a]
+      if (b - a + 1 > max) throw new Error(`Rentang ${tok} melebihi batas ${max} nomor sekaligus.`)
+      for (let n = a; n <= b; n++) seqs.push(n)
+    } else {
+      // Satu token bisa berisi beberapa nomor pisah-spasi ("5 6 7");
+      // bentuk "PREFIX-N" tidak mengandung spasi sehingga aman dipecah.
+      for (const part of tok.split(/\s+/).filter(Boolean)) {
+        seqs.push(parseQueueNumber(service, part).seq)
+      }
+    }
+  }
+  const uniq = [...new Set(seqs)].sort((x, y) => x - y)
+  if (!uniq.length) throw new Error('Masukkan nomor antrean.')
+  if (uniq.length > max) throw new Error(`Maksimal ${max} nomor dalam sekali panggil.`)
+  const prefix = (service.prefix || '').toUpperCase()
+  return uniq.map((seq) => makeQueueNumber(prefix, seq))
+}
+
 // Panggil langsung nomor kupon: kalau nomor belum terdaftar hari ini, dibuatkan
 // persis sesuai kupon lalu langsung CALLED. Nomor yang sudah ada → panggil ulang.
-export async function callDirect({ service, number, name }) {
+// `calledAt` opsional: cap waktu CALLED eksplisit agar satu batch serentak
+// berbagi called_at identik (dipakai Display untuk mengelompokkan + mengumumkan gabungan).
+export async function callDirect({ service, number, name, calledAt }) {
   const { prefix, seq } = parseQueueNumber(service, number)
   const fullNumber = makeQueueNumber(prefix, seq)
-  const now = new Date().toISOString()
+  const now = calledAt || new Date().toISOString()
   const holder = (name || '').trim() || 'Tanpa Nama'
 
   if (isSupabaseConfigured) {
@@ -146,7 +180,7 @@ export async function callDirect({ service, number, name }) {
       .eq('service_id', service.id)
       .eq('number', fullNumber)
       .maybeSingle()
-    if (existing) return setStatus(existing.id, 'CALLED')
+    if (existing) return setStatus(existing.id, 'CALLED', { called_at: now })
 
     const { data: todayRows, error: rowsErr } = await supabase
       .from('queues')
@@ -180,7 +214,7 @@ export async function callDirect({ service, number, name }) {
           .eq('service_id', service.id)
           .eq('number', fullNumber)
           .single()
-        if (retry) return setStatus(retry.id, 'CALLED')
+        if (retry) return setStatus(retry.id, 'CALLED', { called_at: now })
       }
       throw error
     }
@@ -215,6 +249,19 @@ export async function callDirect({ service, number, name }) {
     created_at: now,
     updated_at: now,
   })
+}
+
+// Panggil beberapa nomor kupon sekaligus (batch): parse input multi-nomor,
+// panggil berurutan menaik — masing-masing tetap lewat guard ensureSequentialCall
+// di callDirect — dengan satu called_at bersama agar Display mengelompokkannya.
+export async function callDirectMany({ service, raw, name }) {
+  const numbers = parseQueueNumbers(service, raw)
+  const calledAt = new Date().toISOString()
+  const out = []
+  for (const number of numbers) {
+    out.push(await callDirect({ service, number, name: numbers.length === 1 ? name : '', calledAt }))
+  }
+  return out
 }
 
 // Reset seluruh antrean hari ini (tombol Reset Antrean Hari Ini)

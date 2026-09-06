@@ -130,6 +130,21 @@ export function useSpeech() {
       : `Nomor antrean ${num}${tujuan}.`)
   }, [announceWithJingle])
 
+  // Panggilan serentak beberapa nomor: satu kalimat gabungan
+  // ("Nomor antrean KTP 5, KTP 6, dan KTP 7, silakan masuk ke ruang pelayanan.")
+  // — satu nomor didelegasikan ke announceQueue (ikut aturan nama/IKD).
+  const announceQueues = useCallback((list) => {
+    const rows = (list || []).filter(Boolean)
+    if (!rows.length) return
+    if (rows.length === 1) return announceQueue(rows[0])
+    const ordered = [...rows].sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+    const nums = ordered.map((q) => String(q.number || '').replace('-', ' '))
+    const last = nums.pop()
+    const joined = nums.length ? `${nums.join(', ')}, dan ${last}` : last
+    const tujuan = ordered[0].counter_name ? `, silakan menuju ${ordered[0].counter_name}` : ', silakan masuk ke ruang pelayanan'
+    announceWithJingle(`Nomor antrean ${joined}${tujuan}.`)
+  }, [announceQueue, announceWithJingle])
+
   const announceKK = useCallback((item) => {
     if (!item) return
     announceWithJingle(`Kartu Keluarga atas nama ${item.name}, ${kkCallNote(item.note, item.counter_name)}.`)
@@ -141,7 +156,7 @@ export function useSpeech() {
     if (msg) announceWithJingle(msg)
   }, [announceWithJingle])
 
-  return { enabled, toggle, speak, speakRepeat, announceQueue, announceKK, announceBroadcast }
+  return { enabled, toggle, speak, speakRepeat, announceQueue, announceQueues, announceKK, announceBroadcast }
 }
 
 export function useClock(intervalMs = 1000) {
