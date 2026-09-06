@@ -363,7 +363,7 @@ export default function PetugasQueue() {
             <span className="w-1 h-5 rounded-full bg-slate-800" />
             <h2 className="font-bold text-slate-900">Panggil Antrean</h2>
           </div>
-          <div className="card p-4 space-y-5">
+          <div className="space-y-4">
             {visibleServices.map((svc, i) => {
               const c = colorFor(svc, i)
               const quota = quotaFor(svc)
@@ -374,7 +374,7 @@ export default function PetugasQueue() {
                 .filter((q) => q.service_id === svc.id && q.status !== 'WAITING')
                 .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
               return (
-                <div key={svc.id}>
+                <div key={svc.id} className="card p-4">
                   <div className="flex items-center gap-2">
                     <span className={`badge ${c.badge} text-white !text-[10px] font-mono shrink-0`}>{svc.prefix}</span>
                     <span className="text-[13px] font-semibold text-slate-700 flex-1 truncate">{svc.name}</span>
@@ -412,12 +412,14 @@ export default function PetugasQueue() {
                 </div>
               )
             })}
-            <button onClick={() => setKkOpen(true)} className="btn w-full !py-2.5 !rounded-lg !text-[13px] bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 font-semibold">
-              <FileText size={15} /> Kasus KK / Konsultasi
-            </button>
-            <button onClick={() => setBcOpen(true)} className="btn w-full !py-2.5 !rounded-lg !text-[13px] bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 font-semibold">
-              <Megaphone size={15} /> Pengumuman ke Masyarakat
-            </button>
+            <div className="card p-4 space-y-3">
+              <button onClick={() => setKkOpen(true)} className="btn w-full !py-2.5 !rounded-lg !text-[13px] bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 font-semibold">
+                <FileText size={15} /> Kasus KK / Konsultasi
+              </button>
+              <button onClick={() => setBcOpen(true)} className="btn w-full !py-2.5 !rounded-lg !text-[13px] bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 font-semibold">
+                <Megaphone size={15} /> Pengumuman ke Masyarakat
+              </button>
+            </div>
           </div>
           <div className="card p-4 mt-4">
             <button
