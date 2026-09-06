@@ -26,9 +26,11 @@ function GovBrand() {
       <GovLogos className="h-9" />
       <div className="leading-tight min-w-0">
         <div className="font-extrabold text-white text-sm tracking-wide">SIAP</div>
-        <div className="text-[10px] font-bold tracking-[0.18em] text-orange-400">PANAKKUKANG</div>
+        <div className="flex items-center gap-1.5">
+          <div className="text-[10px] font-bold tracking-[0.18em] text-orange-400 whitespace-nowrap">PANAKKUKANG</div>
+          <span className="badge bg-amber-400/90 text-amber-950 shrink-0 !text-[10px]">v3.0</span>
+        </div>
       </div>
-      <span className="badge bg-amber-400/90 text-amber-950 shrink-0 !text-[10px]">v3.0</span>
     </div>
   )
 }
