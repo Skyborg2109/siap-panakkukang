@@ -283,13 +283,13 @@ export default function Display() {
 
       {/* Ticker pengumuman */}
       <footer className="bg-[#0b1220] text-white mt-1 shrink-0">
-        <div className="flex items-center gap-3 px-3 py-2.5 overflow-hidden">
-          <span className="shrink-0 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-extrabold tracking-wider">PENGUMUMAN</span>
+        <div className="flex items-center gap-4 px-4 py-4 overflow-hidden">
+          <span className="shrink-0 rounded-lg bg-orange-500 px-4 py-2 text-sm md:text-base font-extrabold tracking-wider">PENGUMUMAN</span>
           <div className="overflow-hidden whitespace-nowrap flex-1">
-            <div className="inline-block animate-ticker text-sm font-medium text-slate-200">{ticker}</div>
+            <div className="inline-block animate-ticker text-lg md:text-2xl font-bold text-white">{ticker}</div>
           </div>
         </div>
-        <div className="h-[2px] bg-orange-500" />
+        <div className="h-[3px] bg-orange-500" />
       </footer>
     </div>
   )

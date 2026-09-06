@@ -49,7 +49,7 @@ body {
   100% { transform: translateX(-100%); }
 }
 .animate-ticker {
-  animation: ticker-scroll 30s linear infinite;
+  animation: ticker-scroll 60s linear infinite;
 }
 
 @keyframes blink-soft {
