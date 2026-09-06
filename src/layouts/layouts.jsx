@@ -49,7 +49,7 @@ function MonitorPill({ to = '/display', label = 'Monitor' }) {
 
 function DashboardNavItem({ to, icon, children, external = false }) {
   const cls = ({ isActive }) =>
-    `flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition whitespace-nowrap ${
+    `flex items-center gap-2 px-3 py-2 md:gap-2.5 md:px-3.5 md:py-2.5 rounded-xl text-[13px] md:text-sm font-semibold transition whitespace-nowrap shrink-0 ${
       isActive && !external
         ? 'bg-orange-600 text-white shadow-[0_4px_14px_rgba(234,88,12,0.4)]'
         : 'text-slate-300/90 hover:bg-white/10 hover:text-white'
@@ -165,8 +165,8 @@ export function DashboardLayout({ children, menu, title, subtitle, eyebrow = 'PE
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#eef2f7]">
-      <aside className="md:w-[248px] bg-[#0b1220] text-white px-3.5 py-4 flex md:flex-col gap-2 md:min-h-screen shrink-0 no-print md:sticky md:top-0 md:h-screen">
-        <div className="px-1.5 pt-1 pb-3">
+      <aside className="md:w-[248px] bg-[#0b1220] text-white px-3 py-3 md:px-3.5 md:py-4 flex flex-col gap-2 md:min-h-screen shrink-0 no-print md:sticky md:top-0 md:h-screen">
+        <div className="px-1.5 pt-1 pb-2 md:pb-3">
           <GovBrand />
         </div>
         <nav className="flex md:flex-col gap-2 overflow-x-auto flex-1 md:mt-1">
