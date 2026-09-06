@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { MonitorPlay, Info, Fingerprint, LogIn, Home, LogOut, ExternalLink } from 'lucide-react'
+import { MonitorPlay, Info, Fingerprint, LogIn, Home, LogOut, ExternalLink, Menu, X } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore.js'
 import { logout } from '../services/authService.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
@@ -162,14 +163,38 @@ export default function PublicLayout({ children }) {
 export function DashboardLayout({ children, menu, title, subtitle, eyebrow = 'PEMERINTAH KOTA MAKASSAR' }) {
   const quickLinks = [{ to: '/display', label: 'Monitor Antrean', external: true }]
   const mainMenu = (menu || []).filter((m) => m.to !== '/display')
+  const [open, setOpen] = useState(false)
+
+  // Drawer mobile: tutup via Escape + kunci scroll body saat terbuka
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [open])
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#eef2f7]">
-      <aside className="md:w-[248px] bg-[#0b1220] text-white px-3 py-3 md:px-3.5 md:py-4 flex flex-col gap-2 md:min-h-screen shrink-0 no-print md:sticky md:top-0 md:h-screen">
-        <div className="px-1.5 pt-1 pb-2 md:pb-3">
-          <GovBrand />
+      {/* Backdrop drawer (mobile saja) */}
+      {open && (
+        <div onClick={() => setOpen(false)} aria-hidden="true" className="fixed inset-0 z-40 bg-black/50 md:hidden" />
+      )}
+      {/* Sidebar desktop / drawer geser kiri di mobile */}
+      <aside className={`bg-[#0b1220] text-white px-3.5 py-4 flex flex-col gap-2 shrink-0 no-print fixed inset-y-0 left-0 z-50 w-[270px] max-w-[85vw] overflow-y-auto transition-transform duration-300 ${open ? 'translate-x-0' : '-translate-x-full'} md:static md:z-auto md:w-[248px] md:max-w-none md:translate-x-0 md:min-h-screen md:h-screen md:sticky md:top-0 md:overflow-visible`}>
+        <div className="px-1.5 pt-1 pb-2 md:pb-3 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <GovBrand />
+          </div>
+          <button onClick={() => setOpen(false)} aria-label="Tutup menu" className="md:hidden p-2 -mr-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 shrink-0">
+            <X size={18} />
+          </button>
         </div>
-        <nav className="flex md:flex-col gap-2 overflow-x-auto flex-1 md:mt-1">
+        <nav onClick={() => setOpen(false)} className="flex flex-col gap-2 flex-1 md:mt-1">
           {mainMenu.map((m) => (
             <DashboardNavItem key={m.to + m.label} to={m.to} icon={m.icon} external={m.external}>
               {m.label}
@@ -198,6 +223,9 @@ export function DashboardLayout({ children, menu, title, subtitle, eyebrow = 'PE
       </aside>
       <div className="flex-1 min-w-0 min-h-screen">
         <div className="bg-white border-b border-slate-200/80 px-5 md:px-7 py-3.5 flex items-start gap-3 no-print">
+          <button onClick={() => setOpen(true)} aria-label="Buka menu" className="md:hidden p-2 -ml-2 mt-0.5 rounded-lg text-slate-700 hover:bg-slate-100 shrink-0">
+            <Menu size={20} />
+          </button>
           <div className="flex-1 min-w-0">
             <div className="text-[11px] font-bold tracking-wider text-orange-600">{eyebrow}</div>
             <h1 className="text-lg font-extrabold text-slate-900 leading-tight">{title}</h1>
