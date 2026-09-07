@@ -25,9 +25,28 @@ export default function Display() {
   const [kk, setKk] = useState(null)
   const [broadcast, setBroadcast] = useState(null)
   const [slide, setSlide] = useState(0)
+  const [unlocked, setUnlocked] = useState(false)
   const lastCalledRef = useRef('')
-  const { enabled, toggle, announceQueue, announceQueues, announceKK, announceBroadcast } = useSpeech()
+  const { enabled, supported, toggle, wake, announceQueue, announceQueues, announceKK, announceBroadcast } = useSpeech()
   const now = useClock()
+
+  // Browser memblokir suara sebelum ada interaksi user: klik/sentuh/tekan tombol
+  // sekali di halaman Display untuk membuka suara, lalu panggilan saat itu dibunyikan.
+  useEffect(() => {
+    const unlock = () => {
+      wake()
+      setUnlocked((prev) => {
+        if (!prev) lastCalledRef.current = ''
+        return true
+      })
+    }
+    window.addEventListener('pointerdown', unlock)
+    window.addEventListener('keydown', unlock)
+    return () => {
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+  }, [wake])
 
   const refresh = useCallback(async () => {
     try {
@@ -69,7 +88,9 @@ export default function Display() {
 
   // TTS: umumkan nomor CALLED terbaru. Nomor yang dipanggil serentak (satu batch
   // callDirectMany berbagi called_at identik) diumumkan sekaligus dalam satu kalimat.
+  // Ditahan sampai ada interaksi user pertama (kebijakan autoplay browser).
   useEffect(() => {
+    if (!unlocked || !enabled) return
     const actives = queues.filter((q) => q.status === 'CALLED' || q.status === 'SERVING').sort((a, b) => new Date(b.called_at || b.updated_at) - new Date(a.called_at || a.updated_at))
     const newest = actives[0]
     if (!newest || !newest.called_at) return
@@ -84,7 +105,7 @@ export default function Display() {
       if (companions.length) announceQueues(batch)
       else announceQueue(newest)
     }
-  }, [queues, announceQueue, announceQueues])
+  }, [queues, unlocked, enabled, announceQueue, announceQueues])
 
   // TTS: umumkan tiap panggilan KK baru tepat satu kali
   useEffect(() => {
@@ -305,8 +326,22 @@ export default function Display() {
         </div>
       </div>
 
-      {/* Ticker pengumuman */}
-      <footer className="bg-[#0b1220] text-white mt-1 shrink-0">
+      {/* Status suara: perlu 1x klik agar browser mengizinkan audio */}
+      {(!supported || !unlocked || !enabled) && (
+        <div className="mx-3 md:mx-4 mb-1 shrink-0">
+          <button
+            onClick={() => { wake(); if (supported && enabled) { lastCalledRef.current = ''; setUnlocked(true) } else toggle() }}
+            className={`w-full rounded-xl px-4 py-2.5 text-sm font-bold flex items-center justify-center gap-2 no-print ${!supported ? 'bg-rose-500 text-white' : 'bg-amber-400 text-amber-950 hover:bg-amber-300'}`}
+          >
+            {!supported
+              ? <><VolumeX size={18} /> Browser ini tidak mendukung suara otomatis — gunakan Chrome/Edge terbaru.</>
+              : !enabled
+                ? <><VolumeX size={18} /> Suara dimatikan — klik untuk menyalakan.</>
+                : <><Volume2 size={18} /> Klik sekali untuk mengaktifkan suara panggilan.</>}
+          </button>
+        </div>
+      )}
+      {/* Ticker pengumuman */}      <footer className="bg-[#0b1220] text-white mt-1 shrink-0">
         <div className="flex items-center gap-4 px-4 py-4 overflow-hidden">
           <span className="shrink-0 rounded-lg bg-orange-500 px-4 py-2 text-sm md:text-base font-extrabold tracking-wider">PENGUMUMAN</span>
           <div className="overflow-hidden whitespace-nowrap flex-1">

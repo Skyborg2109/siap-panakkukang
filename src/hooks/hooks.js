@@ -25,23 +25,49 @@ function playFile(src) {
 
 // Web Speech API — prioritas suara perempuan Bahasa Indonesia
 export function useSpeech() {
-  const [enabled, setEnabled] = useState(() => localStorage.getItem('siap_tts') !== 'off')
+  const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
+  const [enabled, setEnabled] = useState(() => {
+    try { return localStorage.getItem('siap_tts') !== 'off' } catch { return true }
+  })
   const [voices, setVoices] = useState([])
 
   useEffect(() => {
+    if (!supported) return
     const load = () => setVoices(window.speechSynthesis?.getVoices() || [])
     load()
     window.speechSynthesis?.addEventListener?.('voiceschanged', load)
     return () => window.speechSynthesis?.removeEventListener?.('voiceschanged', load)
-  }, [])
+  }, [supported])
+
+  // Bangunkan mesin suara (wajib dipanggil dari interaksi user minimal 1x —
+  // tanpa ini Chrome memblokir audio/speech di halaman Display yang baru dibuka)
+  const wake = useCallback(() => {
+    if (!supported) return
+    try {
+      window.speechSynthesis.getVoices()
+      window.speechSynthesis.resume()
+    } catch { /* abaikan */ }
+  }, [supported])
+
+  // Watchdog bug Chrome: synthesis kadang macet dalam status "paused"
+  useEffect(() => {
+    if (!supported || !enabled) return
+    const t = setInterval(() => {
+      try {
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume()
+      } catch { /* abaikan */ }
+    }, 5000)
+    return () => clearInterval(t)
+  }, [supported, enabled])
 
   const toggle = useCallback(() => {
     setEnabled((v) => {
-      localStorage.setItem('siap_tts', v ? 'off' : 'on')
+      try { localStorage.setItem('siap_tts', v ? 'off' : 'on') } catch { /* abaikan */ }
       if (v) window.speechSynthesis?.cancel()
+      else wake()
       return !v
     })
-  }, [])
+  }, [wake])
 
   const pickVoice = useCallback(() => {
     if (!voices.length) return null
@@ -53,69 +79,86 @@ export function useSpeech() {
     return voices.find((v) => v.lang?.toLowerCase().startsWith('en')) || voices[0]
   }, [voices])
 
-  const speak = useCallback((text) => {
-    if (!enabled || !('speechSynthesis' in window)) return
-    window.speechSynthesis.cancel()
-    const u = new SpeechSynthesisUtterance(text)
-    u.lang = 'id-ID'
-    u.rate = 0.95
-    u.pitch = 1.05
-    const v = pickVoice()
-    if (v) u.voice = v
-    window.speechSynthesis.speak(u)
-  }, [enabled, pickVoice])
+  // Jeda singkat setelah cancel(): bug Chrome — speak() yang dipanggil
+  // seketika setelah cancel() sering hilang tanpa suara.
+  const settle = () => new Promise((r) => setTimeout(r, 150))
 
-  // Ucapkan 2x dengan jeda pendek agar panggilan lebih jelas terdengar
-  const speakRepeat = useCallback((text, times = 2, onDone) => {
-    if (!enabled || !('speechSynthesis' in window)) {
-      if (onDone) onDone()
-      return
-    }
+  const speak = useCallback((text) => {
+    if (!enabled || !supported) return
     window.speechSynthesis.cancel()
-    let n = 0
-    const say = () => {
-      if (n >= times) {
-        if (onDone) onDone()
-        return
-      }
-      n++
+    window.speechSynthesis.resume()
+    settle().then(() => {
+      if (!enabled) return
       const u = new SpeechSynthesisUtterance(text)
       u.lang = 'id-ID'
       u.rate = 0.95
       u.pitch = 1.05
       const v = pickVoice()
       if (v) u.voice = v
-      if (n < times) {
-        let fired = false
-        const next = () => { if (!fired) { fired = true; setTimeout(say, 700) } }
-        u.onend = next
-        u.onerror = next
-      } else if (onDone) {
-        let fired = false
-        const finish = () => { if (!fired) { fired = true; onDone() } }
-        u.onend = finish
-        u.onerror = finish
-      }
       window.speechSynthesis.speak(u)
+    })
+  }, [enabled, supported, pickVoice])
+
+  // Ucapkan 2x dengan jeda pendek agar panggilan lebih jelas terdengar
+  const speakRepeat = useCallback((text, times = 2, onDone) => {
+    if (!enabled || !supported) {
+      if (onDone) onDone()
+      return
     }
-    say()
-  }, [enabled, pickVoice])
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.resume()
+    settle().then(() => {
+      if (!enabled) { if (onDone) onDone(); return }
+      let n = 0
+      const say = () => {
+        if (!enabled) { if (onDone) onDone(); return }
+        if (n >= times) {
+          if (onDone) onDone()
+          return
+        }
+        n++
+        const u = new SpeechSynthesisUtterance(text)
+        u.lang = 'id-ID'
+        u.rate = 0.95
+        u.pitch = 1.05
+        const v = pickVoice()
+        if (v) u.voice = v
+        if (n < times) {
+          let fired = false
+          const next = () => { if (!fired) { fired = true; setTimeout(say, 700) } }
+          u.onend = next
+          u.onerror = next
+          // Pengaman: kalau onend/onerror tak pernah datang, lanjutkan
+          setTimeout(next, 20000)
+        } else if (onDone) {
+          let fired = false
+          const finish = () => { if (!fired) { fired = true; onDone() } }
+          u.onend = finish
+          u.onerror = finish
+          setTimeout(finish, 20000)
+        }
+        window.speechSynthesis.speak(u)
+      }
+      say()
+    })
+  }, [enabled, supported, pickVoice])
 
   // Rangkaian penuh: opening → pengumuman 2x → closing.
   // Generasi baru membatalkan rangkaian lama agar panggilan tak bertumpuk.
   const callSeq = useRef(0)
   const announceWithJingle = useCallback((text) => {
-    if (!enabled || !('speechSynthesis' in window)) return
+    if (!enabled || !supported) return
     const my = ++callSeq.current
     const alive = () => callSeq.current === my
     window.speechSynthesis.cancel()
+    window.speechSynthesis.resume()
     playFile(OPENING_SOUND).then(() => {
       if (!alive()) return
       speakRepeat(text, 2, () => {
         if (alive()) playFile(CLOSING_SOUND)
       })
     })
-  }, [enabled, speakRepeat])
+  }, [enabled, supported, speakRepeat])
 
   const announceQueue = useCallback((queue) => {
     if (!queue) return
@@ -156,7 +199,7 @@ export function useSpeech() {
     if (msg) announceWithJingle(msg)
   }, [announceWithJingle])
 
-  return { enabled, toggle, speak, speakRepeat, announceQueue, announceQueues, announceKK, announceBroadcast }
+  return { enabled, supported, toggle, wake, speak, speakRepeat, announceQueue, announceQueues, announceKK, announceBroadcast }
 }
 
 export function useClock(intervalMs = 1000) {
