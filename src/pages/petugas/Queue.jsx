@@ -6,7 +6,7 @@ import {
 import { DashboardLayout } from '../../layouts/layouts.jsx'
 import {
   getTodayQueueList, recallQueue, skipQueue,
-  completeQueue, setStatus, resetToday, callDirectMany, callNext,
+  completeQueue, setStatus, resetToday, callDirect, callDirectMany, callNext,
 } from '../../services/queueService.js'
 import { getServices } from '../../services/masterService.js'
 import { callKKCase, sendBroadcast } from '../../services/displayService.js'
