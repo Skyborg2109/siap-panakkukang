@@ -1,7 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js'
 import { todayKey, makeQueueNumber } from '../utils/date.js'
 import { quotaFor } from '../lib/constants.js'
-import { createLocalQueue, getTodayQueues, updateLocalQueue, getAllLocalQueues } from '../utils/queue.js'
+import { createLocalQueue, getTodayQueues, updateLocalQueue, getAllLocalQueues, saveLocalQueue } from '../utils/queue.js'
 
 // Ambil nomor antrean — via RPC Supabase (anti-duplikat + cek kuota) atau local fallback
 export async function takeQueue({ service, name, nik }) {
@@ -109,26 +109,9 @@ function parseQueueNumber(service, raw) {
   return { prefix, seq }
 }
 
-// Aturan urutan kupon fisik: nomor baru hanya boleh dipanggil berurutan —
-// tidak boleh melompati nomor di bawahnya yang belum dipanggil.
-// (Panggil ulang nomor yang sudah terdaftar selalu boleh.)
-// rows = antrean hari ini untuk layanan tersebut ({ sequence, status }).
-function ensureSequentialCall(service, seq, rows) {
-  const prefix = (service.prefix || '').toUpperCase()
-  const full = makeQueueNumber(prefix, seq)
-  const seqs = (rows || []).map((r) => r.sequence).filter((n) => Number.isFinite(n))
-  const maxAll = seqs.length ? Math.max(...seqs) : 0
-  if (seq > maxAll + 1) {
-    throw new Error(`Tidak bisa memanggil ${full} — panggil ${makeQueueNumber(prefix, maxAll + 1)} dulu agar berurutan.`)
-  }
-  const waitingBelow = (rows || [])
-    .filter((r) => r.status === 'WAITING' && r.sequence < seq)
-    .map((r) => r.sequence)
-    .sort((a, b) => a - b)
-  if (waitingBelow.length) {
-    throw new Error(`Nomor ${makeQueueNumber(prefix, waitingBelow[0])} belum dipanggil — panggil nomor itu dulu sebelum ${full}.`)
-  }
-}
+// Panggilan kupon fisik bebas — nomor mana pun boleh dipanggil langsung
+// (termasuk nomor yang terlewati / melompati nomor di bawahnya).
+// rows tidak lagi dipakai, dipertahankan sebagai argumen opsional agar kompatibel.
 
 // Batas nomor dalam sekali panggil serentak (cegah spam panggil + TTS kepanjangan)
 export const MAX_BATCH_CALL = 10
@@ -188,7 +171,6 @@ export async function callDirect({ service, number, name, calledAt }) {
       .eq('queue_date', todayKey())
       .eq('service_id', service.id)
     if (rowsErr) throw rowsErr
-    ensureSequentialCall(service, seq, todayRows || [])
 
     const quota = quotaFor(service)
     if ((todayRows || []).length >= quota) throw new Error(`Kuota ${service.name} hari ini sudah penuh (${quota}).`)
@@ -228,7 +210,6 @@ export async function callDirect({ service, number, name, calledAt }) {
   if (found) return updateLocalQueue(found.id, { status: 'CALLED', called_at: now })
 
   const rows = all.filter((q) => q.queue_date === todayKey() && q.service_id === service.id)
-  ensureSequentialCall(service, seq, rows)
 
   const quota = quotaFor(service)
   if (rows.length >= quota) throw new Error(`Kuota ${service.name} hari ini sudah penuh (${quota}).`)
@@ -252,8 +233,8 @@ export async function callDirect({ service, number, name, calledAt }) {
 }
 
 // Panggil beberapa nomor kupon sekaligus (batch): parse input multi-nomor,
-// panggil berurutan menaik — masing-masing tetap lewat guard ensureSequentialCall
-// di callDirect — dengan satu called_at bersama agar Display mengelompokkannya.
+// panggil menaik — tanpa aturan urutan, nomor terlewati pun boleh dipanggil —
+// dengan satu called_at bersama agar Display mengelompokkannya.
 export async function callDirectMany({ service, raw, name }) {
   const numbers = parseQueueNumbers(service, raw)
   const calledAt = new Date().toISOString()

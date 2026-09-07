@@ -435,7 +435,7 @@ export default function PetugasQueue() {
       {/* Modal: panggil nomor kupon langsung */}
       <Modal open={!!specOpen} onClose={() => setSpecOpen(null)} title={`Panggil Nomor — ${specOpen?.name || ''}`}>
         <form onSubmit={handleDirect} className="space-y-3">
-          <p className="text-sm text-slate-500">Satu nomor (cth: {specOpen ? `${specOpen.prefix}-5` : 'KTP-5'} atau cukup 5) atau beberapa sekaligus: pisahkan dengan koma (cth: 5,6,7) atau rentang (cth: 5-8, maks 10 nomor). Nomor yang belum terdaftar dibuat otomatis lalu dipanggil serentak. Tetap harus berurutan — tidak bisa melompati nomor di bawahnya yang belum dipanggil.</p>
+          <p className="text-sm text-slate-500">Satu nomor (cth: {specOpen ? `${specOpen.prefix}-5` : 'KTP-5'} atau cukup 5) atau beberapa sekaligus: pisahkan dengan koma (cth: 5,6,7) atau rentang (cth: 5-8, maks 10 nomor). Nomor yang belum terdaftar dibuat otomatis lalu dipanggil serentak. Nomor mana pun boleh dipanggil langsung, termasuk yang terlewati.</p>
           <Field label="Nomor Antrean *">
             <input
               className="input font-mono"
