@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   LayoutDashboard, History, Settings, Search,
-  Volume2, ChevronsRight, FileText, RotateCcw, Pencil, Megaphone,
+  Volume2, Check, ChevronsRight, FileText, RotateCcw, Pencil, Megaphone,
 } from 'lucide-react'
 import { DashboardLayout } from '../../layouts/layouts.jsx'
 import {
   getTodayQueueList, recallQueue, skipQueue,
-  setStatus, resetToday, callDirectMany, callNext,
+  completeQueue, setStatus, resetToday, callDirectMany, callNext,
 } from '../../services/queueService.js'
 import { getServices } from '../../services/masterService.js'
 import { callKKCase, sendBroadcast } from '../../services/displayService.js'
@@ -158,11 +158,11 @@ export default function PetugasQueue() {
     finally { setBusy(null) }
   }
 
-  // Berikutnya → langsung panggil nomor berikutnya (seq + 1)
+  // Selesai / Berikutnya → langsung panggil nomor berikutnya (seq + 1)
   // DARI JENIS YANG SAMA dengan kartu yang tombolnya ditekan.
   // Kupon fisik: nomor berikut dibuatkan otomatis bila belum terdaftar
   // (callDirect), atau dipanggil ulang bila sudah ada.
-  // Nomor aktif dicatat SKIPPED (dilewati).
+  // Selesai = nomor aktif COMPLETED; Berikutnya = nomor aktif SKIPPED (dilewati).
   const finishAndCallNext = async (svc, key, finishFn, verb) => {
     const target = targetOf(svc.id)
     if (!target) return
@@ -332,13 +332,21 @@ export default function PetugasQueue() {
                         </>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+                    <div className="grid grid-cols-3 gap-2 px-3 pb-3">
                       <button
                         disabled={!target || busy === `recall-${svc.id}`}
                         onClick={() => target && runOn(`recall-${svc.id}`, target.id, () => recallQueue(target.id))}
                         className="btn-secondary !px-2 !py-2 !text-xs !rounded-lg"
                       >
                         <Volume2 size={14} /> Ulangi
+                      </button>
+                      <button
+                        disabled={!target || busy === `done-${svc.id}`}
+                        onClick={() => finishAndCallNext(svc, `done-${svc.id}`, completeQueue, 'selesai')}
+                        title="Tandai nomor aktif selesai & panggil nomor berikutnya"
+                        className="btn-success !px-2 !py-2 !text-xs !rounded-lg"
+                      >
+                        <Check size={14} /> Selesai
                       </button>
                       <button
                         disabled={!target || busy === `skip-${svc.id}`}

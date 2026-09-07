@@ -270,13 +270,12 @@ export default function Display() {
               <div>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 border border-orange-200 px-3 py-1.5 text-xs font-bold tracking-wider text-orange-700 uppercase leading-none">
                   <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
-                  Antrean {service.prefix}
+                  {service.name}
                 </span>
               </div>
               {called ? (
                 <div className="flex-1 min-h-0 flex flex-col justify-center">
-                  <div className="text-sm font-bold tracking-wider text-slate-500 mt-2 uppercase">{service.name}</div>
-                  <div className="font-extrabold text-[clamp(2rem,6.5vh,3.5rem)] leading-tight tracking-tight text-slate-900 tabular-nums mt-0.5">{called.number}</div>
+                  <div className="font-extrabold text-[clamp(2rem,6.5vh,3.5rem)] leading-tight tracking-tight text-slate-900 tabular-nums mt-2">{called.number}</div>
                   {hasRealName(called.name) && (
                     <div className="text-sm text-slate-500 mt-1.5 truncate">a.n. <b className="text-slate-700">{String(called.name).trim()}</b></div>
                   )}
@@ -293,8 +292,7 @@ export default function Display() {
                 </div>
               ) : (
                 <div className="flex-1 min-h-0 flex flex-col justify-center">
-                  <div className="text-sm font-bold tracking-wider text-slate-500 mt-2 uppercase">{service.name}</div>
-                  <div className="font-extrabold text-[clamp(1.6rem,5vh,2.5rem)] leading-8 text-slate-300 mt-1 tracking-tight">Menunggu</div>
+                  <div className="font-extrabold text-[clamp(1.6rem,5vh,2.5rem)] leading-8 text-slate-300 mt-2 tracking-tight">Menunggu</div>
                 </div>
               )}
               {called && (

@@ -136,6 +136,7 @@ create or replace function public.take_queue_number(p_service_id uuid, p_name te
 returns public.queues
 language plpgsql
 security definer
+set search_path = public
 as $$
 declare
   v_service public.services%rowtype;
@@ -181,6 +182,100 @@ end;
 $$;
 
 -- ============================================================
+-- RPC: call_direct_number — panggil nomor kupon langsung (bebas urutan)
+-- Insert status CALLED langsung ditolak policy "public insert queue"
+-- (hanya boleh WAITING), jadi perlu RPC SECURITY DEFINER seperti
+-- take_queue_number agar lolos RLS. Kalau nomor sudah ada hari ini
+-- → panggil ulang (update CALLED). Dipakai queueService.callDirect.
+-- ============================================================
+create or replace function public.call_direct_number(p_service_id uuid, p_sequence int, p_name text default 'Tanpa Nama', p_called_at timestamptz default now())
+returns public.queues
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_service public.services%rowtype;
+  v_full text;
+  v_quota int;
+  v_count int;
+  v_row public.queues%rowtype;
+  v_holder text;
+begin
+  if p_sequence is null or p_sequence < 1 or p_sequence > 999 then
+    raise exception 'Nomor tidak valid';
+  end if;
+
+  select * into v_service from public.services where id = p_service_id and is_active = true;
+  if not found then
+    raise exception 'Layanan tidak aktif / tidak ditemukan';
+  end if;
+
+  v_full := v_service.prefix || '-' || p_sequence::text;
+  v_holder := nullif(trim(coalesce(p_name, '')), '');
+  if v_holder is null then v_holder := 'Tanpa Nama'; end if;
+
+  -- Nomor sudah terdaftar hari ini → panggil ulang
+  select * into v_row from public.queues
+  where queue_date = current_date and service_id = p_service_id and number = v_full;
+  if found then
+    update public.queues
+    set status = 'CALLED', called_at = coalesce(p_called_at, now()), updated_at = now()
+    where id = v_row.id returning * into v_row;
+    return v_row;
+  end if;
+
+  -- Kuota per layanan per hari
+  v_quota := coalesce(
+    v_service.daily_quota,
+    case v_service.prefix when 'IKD' then 100 when 'REKAM' then 50 else 50 end
+  );
+  select count(*) into v_count
+  from public.queues
+  where queue_date = current_date and service_id = p_service_id;
+  if v_count >= v_quota then
+    raise exception 'Kuota % hari ini sudah penuh (%)', v_service.name, v_quota;
+  end if;
+
+  -- Kunci per layanan per hari agar dua petugas tak membuat nomor sama
+  perform pg_advisory_xact_lock(hashtext(p_service_id::text || current_date::text));
+
+  -- Cek ulang setelah lock (hindari balapan)
+  select * into v_row from public.queues
+  where queue_date = current_date and service_id = p_service_id and number = v_full;
+  if found then
+    update public.queues
+    set status = 'CALLED', called_at = coalesce(p_called_at, now()), updated_at = now()
+    where id = v_row.id returning * into v_row;
+    return v_row;
+  end if;
+
+  insert into public.queues (queue_date, service_id, service_name, prefix, sequence, number, name, status, called_at)
+  values (current_date, p_service_id, v_service.name, v_service.prefix, p_sequence, v_full, v_holder, 'CALLED', coalesce(p_called_at, now()))
+  returning * into v_row;
+  return v_row;
+exception when unique_violation then
+  -- Balapan dengan petugas lain: nomor keburu dibuat → panggil yang sudah ada
+  select * into v_row from public.queues
+  where queue_date = current_date and service_id = p_service_id and number = v_full;
+  if found then
+    update public.queues
+    set status = 'CALLED', called_at = coalesce(p_called_at, now()), updated_at = now()
+    where id = v_row.id returning * into v_row;
+    return v_row;
+  end if;
+  raise;
+end;
+$$;
+
+-- RPC boleh dipanggil peran anon (ambil antrean publik) & authenticated (petugas)
+revoke all on function public.take_queue_number(uuid, text, text) from public;
+grant execute on function public.take_queue_number(uuid, text, text) to anon, authenticated;
+revoke all on function public.call_direct_number(uuid, int, text, timestamptz) from public;
+grant execute on function public.call_direct_number(uuid, int, text, timestamptz) to authenticated;
+grant execute on function public.current_role() to anon, authenticated;
+
+-- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
 alter table public.profiles enable row level security;
@@ -195,9 +290,18 @@ alter table public.display_images enable row level security;
 alter table public.kk_announcements enable row level security;
 alter table public.broadcasts enable row level security;
 
--- Helper: cek role pemanggil
+-- Helper: cek role pemanggil.
+-- SECURITY DEFINER agar lolos RLS tabel profiles (tanpa ini, policy yang
+-- memanggil helper mengalami rekursi → current_role() NULL → error
+-- 'new row violates row-level security policy for table "queues"'
+-- saat insert langsung status CALLED via callDirect).
 create or replace function public.current_role()
-returns text language sql stable as $$
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
   select role from public.profiles where id = auth.uid()
 $$;
 
@@ -259,8 +363,15 @@ drop policy if exists "admin all contents" on public.display_contents;
 create policy "admin all contents" on public.display_contents
   for all using (public.current_role() = 'ADMIN') with check (public.current_role() = 'ADMIN');
 drop policy if exists "admin read profiles" on public.profiles;
-create policy "admin read profiles" on public.profiles
-  for all using (public.current_role() = 'ADMIN' or id = auth.uid()) with check (public.current_role() = 'ADMIN');
+-- Petugas/Admin: baca profil sendiri (tanpa panggil current_role → tanpa rekursi).
+-- Dipakai saat login (authService membaca profiles by id).
+drop policy if exists "staff read own profile" on public.profiles;
+create policy "staff read own profile" on public.profiles
+  for select using (id = auth.uid());
+-- Admin: full CRUD semua profil (butuh current_role yang kini SECURITY DEFINER).
+drop policy if exists "admin all profiles" on public.profiles;
+create policy "admin all profiles" on public.profiles
+  for all using (public.current_role() = 'ADMIN') with check (public.current_role() = 'ADMIN');
 
 -- ============================================================
 -- SEED DATA

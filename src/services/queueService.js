@@ -156,6 +156,29 @@ export async function callDirect({ service, number, name, calledAt }) {
   const holder = (name || '').trim() || 'Tanpa Nama'
 
   if (isSupabaseConfigured) {
+    // Jalur utama: RPC SECURITY DEFINER (lolos RLS untuk insert CALLED).
+    // Wajib jalankan migrasi supabase/schema.sql terbaru di SQL Editor.
+    const { data: rpcData, error: rpcError } = await supabase.rpc('call_direct_number', {
+      p_service_id: service.id,
+      p_sequence: seq,
+      p_name: holder,
+      p_called_at: now,
+    })
+    if (!rpcError) return normalizeRow(Array.isArray(rpcData) ? rpcData[0] : rpcData)
+    // Fungsi belum ada di DB (belum migrasi) → fallback ke insert langsung.
+    // Error lain (kuota, validasi, RLS) → lempar dengan pesan yang jelas.
+    const rpcMsg = (rpcError?.message || '').toLowerCase()
+    const missingFn =
+      rpcError?.code === '42883' ||
+      rpcMsg.includes('could not find the function') ||
+      rpcMsg.includes('schema cache')
+    if (!missingFn) {
+      if (/row-level security/i.test(rpcError?.message || '')) {
+        throw new Error('Database menolak (RLS). Jalankan supabase/schema.sql terbaru di SQL Editor Supabase, lalu coba lagi.')
+      }
+      throw rpcError
+    }
+
     const { data: existing } = await supabase
       .from('queues')
       .select('*, services(name,prefix)')
@@ -197,6 +220,9 @@ export async function callDirect({ service, number, name, calledAt }) {
           .eq('number', fullNumber)
           .single()
         if (retry) return setStatus(retry.id, 'CALLED', { called_at: now })
+      }
+      if (/row-level security/i.test(error.message || '')) {
+        throw new Error('Database menolak (RLS). Jalankan supabase/schema.sql terbaru di SQL Editor Supabase, lalu coba lagi.')
       }
       throw error
     }
