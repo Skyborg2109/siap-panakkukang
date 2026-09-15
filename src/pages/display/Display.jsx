@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Volume2, VolumeX, Maximize, Megaphone } from 'lucide-react'
+import { Volume2, VolumeX, Megaphone } from 'lucide-react'
 import { getTodayQueueList } from '../../services/queueService.js'
 import { getAnnouncements, getServices } from '../../services/masterService.js'
 import { getDisplayImages, getLatestKK, getLatestBroadcast } from '../../services/displayService.js'
@@ -31,18 +31,8 @@ export default function Display() {
   const [slide, setSlide] = useState(0)
   const [unlocked, setUnlocked] = useState(false)
   const lastCalledRef = useRef('')
-  const { enabled, supported, toggle, wake, announceQueue, announceQueues, announceKK, announceBroadcast, volume, setVolume, voiceCount } = useSpeech()
+  const { enabled, supported, toggle, wake, announceQueue, announceQueues, announceKK, announceBroadcast } = useSpeech()
   const now = useClock()
-
-  // Tombol diagnosa: bunyikan contoh pengumuman langsung dari gestur klik.
-  // Kalau ini bersuara → jalur audio OK, masalah ada di pemicu/unlock.
-  // Kalau ini pun bisu → masalah di browser/suara perangkat.
-  const testSound = () => {
-    wake()
-    setUnlocked(true)
-    if (!enabled) toggle()
-    announceWithJingle('Tes suara papan informasi Kecamatan Panakkukang.')
-  }
 
   // Browser memblokir suara sebelum ada interaksi user: klik/sentuh/tekan tombol
   // sekali di halaman Display untuk membuka suara, lalu panggilan saat itu dibunyikan.
@@ -211,23 +201,6 @@ export default function Display() {
           <div className="text-right leading-tight">
             <div className="font-mono font-extrabold text-xl md:text-3xl tabular-nums tracking-tight">{formatClock(now).replaceAll(':', '.')}</div>
             <div className="text-[11px] text-slate-300">{formatDateFull(now)}</div>
-          </div>
-          <div className="hidden sm:flex gap-2 no-print items-center">
-            <button onClick={toggle} className="p-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Suara">{enabled ? <Volume2 size={18} /> : <VolumeX size={18} />}</button>
-            <input
-              type="range" min={0} max={100} value={Math.round(volume * 100)}
-              onChange={(e) => setVolume(Number(e.target.value) / 100)}
-              title={`Volume suara ${Math.round(volume * 100)}%`}
-              className="w-24 accent-orange-500 cursor-pointer"
-            />
-            <button
-              onClick={testSound}
-              title={!supported ? 'Browser tidak mendukung suara otomatis' : `Tes suara (${voiceCount} suara tersedia)`}
-              className="px-3 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold whitespace-nowrap"
-            >
-              Tes Suara
-            </button>
-            <button onClick={() => document.documentElement.requestFullscreen?.()} className="p-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Fullscreen"><Maximize size={18} /></button>
           </div>
         </div>
         <div className="h-[3px] bg-orange-500" />
