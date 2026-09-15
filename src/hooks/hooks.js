@@ -233,7 +233,7 @@ export function useSpeech() {
     if (msg) announceWithJingle(msg)
   }, [announceWithJingle])
 
-  return { enabled, supported, toggle, wake, speak, speakRepeat, announceQueue, announceQueues, announceKK, announceBroadcast, volume, setVolume }
+  return { enabled, supported, toggle, wake, speak, speakRepeat, announceQueue, announceQueues, announceKK, announceBroadcast, volume, setVolume, voiceCount: voices.length }
 }
 
 export function useClock(intervalMs = 1000) {
