@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase.js'
+import { supabase, isSupabaseConfigured, assertSupabaseSession, friendlySupabaseError } from '../lib/supabase.js'
 import { getLocalKK, getLocalBroadcasts } from '../utils/queue.js'
 
 export async function getDisplayImages() {
@@ -79,8 +79,9 @@ export async function getLatestKK() {
 // KK announcement — panggil kasus KK tanpa nomor (BR-09)
 export async function callKKCase({ name, note, counterName }) {
   if (isSupabaseConfigured) {
+    await assertSupabaseSession()
     const { data, error } = await supabase.from('kk_announcements').insert({ name, note, counter_name: counterName }).select().single()
-    if (error) throw error
+    if (error) throw friendlySupabaseError(error)
     return data
   }
   const { addLocalKK } = await import('../utils/queue.js')
@@ -107,8 +108,9 @@ export async function sendBroadcast({ message }) {
   const msg = String(message || '').trim()
   if (msg.length < 3) throw new Error('Isi pengumuman minimal 3 huruf.')
   if (isSupabaseConfigured) {
+    await assertSupabaseSession()
     const { data, error } = await supabase.from('broadcasts').insert({ message: msg }).select().single()
-    if (error) throw error
+    if (error) throw friendlySupabaseError(error)
     return data
   }
   const { addLocalBroadcast } = await import('../utils/queue.js')

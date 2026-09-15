@@ -96,6 +96,20 @@ export function callDestination(serviceOrPrefix) {
   return isLoketService(serviceOrPrefix) ? 'silakan maju ke depan loket pelayanan' : 'silakan masuk ke ruang pelayanan'
 }
 
+// Layanan yang dipanggil berbasis NAMA, bukan nomor antrean (Perekaman KTP:
+// nama yang sedang dilayani tampil besar di monitor + diumumkan via audio).
+// Deteksi pola seperti isLoketService agar varian prefix admin tetap ter-cover.
+export const NAME_CALL_PREFIXES = ['REKAM']
+
+export function isNameCallService(serviceOrPrefix) {
+  const obj = typeof serviceOrPrefix === 'string' ? {} : serviceOrPrefix || {}
+  const p = String(typeof serviceOrPrefix === 'string' ? serviceOrPrefix : obj.prefix || '').toUpperCase()
+  if (NAME_CALL_PREFIXES.includes(p)) return true
+  // Fallback via nama layanan (bila prefix tak dikenal / kosong)
+  const nm = String(obj.service_name || obj.name || '').toLowerCase()
+  return nm.includes('rekam')
+}
+
 export const SEED_INFORMATION = [
   { id: 'info-1', title: 'Jam Pelayanan', category: 'umum', content: 'Senin–Kamis: 08.00–14.00 WITA\nJumat: 08.00–11.30 WITA\nSabtu–Minggu & libur nasional: TUTUP', is_active: true },
   { id: 'info-2', title: 'Alur Pelayanan', category: 'alur', content: '1. Datang ke ruang pelayanan dan lapor ke petugas\n2. Tunggu hingga nomor antrean Anda dipanggil\n3. Serahkan berkas & verifikasi\n4. Terima dokumen / surat keterangan', is_active: true },

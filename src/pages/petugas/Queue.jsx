@@ -7,10 +7,12 @@ import { DashboardLayout } from '../../layouts/layouts.jsx'
 import {
   getTodayQueueList, recallQueue, skipQueue,
   completeQueue, setStatus, resetToday, callDirect, callDirectMany, callNext,
+  parseQueueNumbers,
 } from '../../services/queueService.js'
 import { getServices } from '../../services/masterService.js'
 import { callKKCase, sendBroadcast } from '../../services/displayService.js'
-import { quotaFor } from '../../lib/constants.js'
+import { quotaFor, isNameCallService } from '../../lib/constants.js'
+import { hasRealName } from '../../utils/queue.js'
 import { Modal, Field } from '../../components/ui/ui.jsx'
 
 const menu = [
@@ -196,10 +198,18 @@ export default function PetugasQueue() {
   // Panggil nomor kupon langsung + nama warga opsional (satu nomor).
   // Beberapa nomor sekaligus: pisah koma ("5,6,7") atau rentang ("5-8") —
   // dibuatkan sesuai kupon berurutan menaik lalu dipanggil serentak.
+  // Perekaman KTP: panggil berbasis nama — nama wajib & satu nama per panggilan.
   const handleDirect = async (e) => {
     e.preventDefault()
     const svc = specOpen
     if (!svc || !specificNum.trim()) return alert('Masukkan nomor antrean.')
+    const nameCall = isNameCallService(svc)
+    if (nameCall) {
+      if (directName.trim().length < 3) return alert('Untuk Perekaman KTP, nama wajib diisi (minimal 3 huruf) — nama yang tampil di monitor & diumumkan.')
+      try {
+        if (parseQueueNumbers(svc, specificNum).length > 1) return alert('Perekaman KTP dipanggil satu nama per panggilan — masukkan satu nomor saja.')
+      } catch (err) { return alert(err.message) }
+    }
     setBusy(`direct-${svc.id}`)
     try {
       const res = await callDirectMany({ service: svc, raw: specificNum, name: directName })
@@ -248,7 +258,7 @@ export default function PetugasQueue() {
   }
 
   const handleReset = async () => {
-    if (!window.confirm('Reset seluruh antrean hari ini? Data antrean hari ini akan dihapus dan nomor mulai dari awal.')) return
+    if (!window.confirm('Reset antrean hari ini? Antrean yang masih aktif (menunggu/dipanggil/dilayani) akan ditandai Dilewati. Riwayat hari ini tetap tersimpan.')) return
     setBusy('reset')
     try { await resetToday(); await refresh() } catch (e) { alert(e.message) }
     finally { setBusy(null) }
@@ -326,6 +336,12 @@ export default function PetugasQueue() {
                               </button>
                             ))}
                           </div>
+                        </>
+                      ) : isNameCallService(svc) && hasRealName(target.name) ? (
+                        <>
+                          <div className="text-[10px] font-bold tracking-[0.14em] text-slate-400">NAMA DIPANGGIL</div>
+                          <div className={`text-[28px] leading-9 font-extrabold mt-0.5 break-words ${c.text}`}>{String(target.name).trim()}</div>
+                          <div className="text-xs text-slate-400 font-mono tabular-nums mt-0.5">{target.number}</div>
                         </>
                       ) : (
                         <>
@@ -443,9 +459,12 @@ export default function PetugasQueue() {
       </div>
 
       {/* Modal: panggil nomor kupon langsung */}
-      <Modal open={!!specOpen} onClose={() => setSpecOpen(null)} title={`Panggil Nomor — ${specOpen?.name || ''}`}>
+      <Modal open={!!specOpen} onClose={() => setSpecOpen(null)} title={`Panggil ${specOpen && isNameCallService(specOpen) ? 'Nama' : 'Nomor'} — ${specOpen?.name || ''}`}>
         <form onSubmit={handleDirect} className="space-y-3">
           <p className="text-sm text-slate-500">Satu nomor (cth: {specOpen ? `${specOpen.prefix}-5` : 'KTP-5'} atau cukup 5) atau beberapa sekaligus: pisahkan dengan koma (cth: 5,6,7) atau rentang (cth: 5-8, maks 10 nomor). Nomor yang belum terdaftar dibuat otomatis lalu dipanggil serentak. Nomor mana pun boleh dipanggil langsung, termasuk yang terlewati.</p>
+          {specOpen && isNameCallService(specOpen) && (
+            <p className="text-sm font-semibold text-blue-700">Perekaman KTP dipanggil berbasis nama: nama di bawah yang tampil di monitor & diumumkan via audio (satu nama per panggilan).</p>
+          )}
           <Field label="Nomor Antrean *">
             <input
               className="input font-mono"
@@ -454,9 +473,9 @@ export default function PetugasQueue() {
               placeholder={specOpen ? `${specOpen.prefix}-5,6,7 atau 5-8` : 'KTP-5,6,7 atau 5-8'}
             />
           </Field>
-          {/* IKD: hanya input nomor, tanpa nama */}
+          {/* IKD: hanya input nomor, tanpa nama. REKAM: nama wajib (identitas panggilan) */}
           {(specOpen?.prefix || '').toUpperCase() !== 'IKD' && (
-            <Field label="Nama Warga (opsional, hanya untuk 1 nomor)">
+            <Field label={specOpen && isNameCallService(specOpen) ? 'Nama Warga * (tampil di monitor & diumumkan)' : 'Nama Warga (opsional, hanya untuk 1 nomor)'}>
               <input
                 className="input"
                 value={directName}

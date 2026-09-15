@@ -7,7 +7,7 @@ import { useSpeech, useClock } from '../../hooks/hooks.js'
 import { GovLogos } from '../../layouts/layouts.jsx'
 import { formatClock, formatDateFull } from '../utils-imports.js'
 import { hasRealName, kkCallNote } from '../../utils/queue.js'
-import { isLoketService } from '../../lib/constants.js'
+import { isLoketService, isNameCallService } from '../../lib/constants.js'
 
 // Judul header slideshow per kategori gambar (ditampilkan realtime mengikuti slide)
 const CATEGORY_META = {
@@ -16,6 +16,10 @@ const CATEGORY_META = {
   'alur': 'Alur Pelayanan',
 }
 const CATEGORY_ORDER = ['staff-dukcapil', 'staff-kecamatan', 'alur']
+
+// Durasi tiap slide papan informasi (milis) — ubah satu angka ini bila ingin
+// perpindahan konten lebih cepat / lambat.
+const SLIDE_INTERVAL_MS = 15_000
 
 export default function Display() {
   const [queues, setQueues] = useState([])
@@ -27,7 +31,7 @@ export default function Display() {
   const [slide, setSlide] = useState(0)
   const [unlocked, setUnlocked] = useState(false)
   const lastCalledRef = useRef('')
-  const { enabled, supported, toggle, wake, announceQueue, announceQueues, announceKK, announceBroadcast } = useSpeech()
+  const { enabled, supported, toggle, wake, announceQueue, announceQueues, announceKK, announceBroadcast, volume, setVolume } = useSpeech()
   const now = useClock()
 
   // Browser memblokir suara sebelum ada interaksi user: klik/sentuh/tekan tombol
@@ -159,7 +163,7 @@ export default function Display() {
   }, [images])
 
   useEffect(() => {
-    const t = setInterval(() => setSlide((s) => (s + 1) % slides.length), 8000)
+    const t = setInterval(() => setSlide((s) => (s + 1) % slides.length), SLIDE_INTERVAL_MS)
     return () => clearInterval(t)
   }, [slides.length])
 
@@ -176,7 +180,7 @@ export default function Display() {
           .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
           .slice(0, 4)
         : []
-      return { service: s, called, companions }
+      return { service: s, called, companions, nameCall: isNameCallService(s) }
     })
   }, [services, queues])
 
@@ -198,8 +202,14 @@ export default function Display() {
             <div className="font-mono font-extrabold text-xl md:text-3xl tabular-nums tracking-tight">{formatClock(now).replaceAll(':', '.')}</div>
             <div className="text-[11px] text-slate-300">{formatDateFull(now)}</div>
           </div>
-          <div className="hidden sm:flex gap-2 no-print">
+          <div className="hidden sm:flex gap-2 no-print items-center">
             <button onClick={toggle} className="p-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Suara">{enabled ? <Volume2 size={18} /> : <VolumeX size={18} />}</button>
+            <input
+              type="range" min={0} max={100} value={Math.round(volume * 100)}
+              onChange={(e) => setVolume(Number(e.target.value) / 100)}
+              title={`Volume suara ${Math.round(volume * 100)}%`}
+              className="w-24 accent-orange-500 cursor-pointer"
+            />
             <button onClick={() => document.documentElement.requestFullscreen?.()} className="p-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" title="Fullscreen"><Maximize size={18} /></button>
           </div>
         </div>
@@ -238,7 +248,9 @@ export default function Display() {
         <div className={`bg-[#0f1b33] text-white rounded-2xl flex flex-col min-h-0 overflow-hidden relative ${current?.kind === 'photo' ? '' : 'p-4 md:p-6'}`}>
           {current?.kind === 'photo' ? (
             // Foto tunggal (alur): tanpa teks sama sekali, gambar utuh tanpa crop —
-            // panel tetap terisi penuh via latar blur dari gambar yang sama
+            // panel tetap terisi penuh via latar blur dari gambar yang sama.
+            // Gambar depan diberi jeda + sudut melengkung agar tidak terpotong
+            // pinggiran panel dan terlihat rapih.
             <div key={`body-${slide}`} className="animate-slide-in absolute inset-0 overflow-hidden">
               <img
                 src={current.item.url || current.item.file_path}
@@ -246,12 +258,16 @@ export default function Display() {
                 aria-hidden="true"
                 className="absolute inset-0 h-full w-full object-cover blur-2xl scale-110 opacity-60"
               />
-              <img
-                src={current.item.url || current.item.file_path}
-                alt={current.item.title || current.item.name}
-                className="absolute inset-0 h-full w-full object-contain"
-              />
-              <div className="absolute bottom-3 left-0 right-0 flex gap-1.5 justify-center">
+              {/* Kotak mengikuti ukuran gambar (bukan diregang penuh) agar
+                  radius sudut benar-benar memotong sudut gambarnya */}
+              <div className="absolute inset-0 p-3 md:p-4 flex items-center justify-center">
+                <img
+                  src={current.item.url || current.item.file_path}
+                  alt={current.item.title || current.item.name}
+                  className="max-h-full max-w-full object-contain rounded-3xl"
+                />
+              </div>
+              <div className="absolute bottom-4 md:bottom-5 left-0 right-0 flex gap-1.5 justify-center">
                 {slides.map((_, i) => (
                   <span key={i} className={`h-2 rounded-full transition-all ${i === slide % slides.length ? 'w-8 bg-orange-500' : 'w-2 bg-white/50'}`} />
                 ))}
@@ -302,8 +318,8 @@ export default function Display() {
             dan viewport pendek. Di layar kecil pakai ukuran fixed biasa. */}
         <div className="grid gap-2 lg:gap-3 content-start lg:content-stretch lg:auto-rows-fr lg:h-full min-h-0 overflow-hidden">
           {perService.length === 0 && <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400">Belum ada jenis antrean aktif.</div>}
-          {perService.map(({ service, called, companions }) => (
-            <div key={service.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm px-4 py-2.5 lg:px-[3cqw] lg:py-[2cqh] text-center flex flex-col min-h-0 h-full overflow-hidden lg:[container-type:size]">
+          {perService.map(({ service, called, companions, nameCall }) => (
+            <div key={service.id} className="bg-white rounded-xl border-2 border-slate-300 shadow-md px-4 py-2.5 lg:px-[3cqw] lg:py-[2cqh] text-center flex flex-col min-h-0 h-full overflow-hidden lg:[container-type:size]">
               <div className="shrink-0">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 border border-orange-200 px-3 py-1.5 lg:px-[2.5cqw] lg:py-[1.2cqh] text-xs lg:text-[8.5cqh] font-bold tracking-wider text-orange-700 uppercase leading-none whitespace-nowrap max-w-full overflow-hidden">
                   <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
@@ -312,16 +328,26 @@ export default function Display() {
               </div>
               {called ? (
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-center">
-                  <div className="font-extrabold text-[clamp(1.75rem,6vh,3rem)] lg:text-[30cqh] leading-none tracking-tight text-slate-900 tabular-nums truncate">{called.number}</div>
-                  {hasRealName(called.name) && (
-                    <div className="text-sm lg:text-[8.5cqh] text-slate-500 mt-1 lg:mt-[0.8cqh] truncate">a.n. <b className="text-slate-700">{String(called.name).trim()}</b></div>
+                  {/* Perekaman KTP: panggil berbasis nama — nama tampil besar, nomor kecil di bawah */}
+                  {nameCall && hasRealName(called.name) ? (
+                    <>
+                      <div className="font-extrabold text-[clamp(1.5rem,5vh,2.5rem)] lg:text-[26cqh] leading-tight tracking-tight text-slate-900 break-words">{String(called.name).trim()}</div>
+                      <div className="text-xs lg:text-[7.5cqh] text-slate-400 mt-1 lg:mt-[0.8cqh] font-mono tabular-nums">{called.number}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-extrabold text-[clamp(1.75rem,6vh,3rem)] lg:text-[30cqh] leading-none tracking-tight text-slate-900 tabular-nums truncate">{called.number}</div>
+                      {hasRealName(called.name) && (
+                        <div className="text-sm lg:text-[8.5cqh] text-slate-500 mt-1 lg:mt-[0.8cqh] truncate">a.n. <b className="text-slate-700">{String(called.name).trim()}</b></div>
+                      )}
+                    </>
                   )}
                   {companions.length > 0 && (
                     <div className="mt-1.5 lg:mt-[1cqh] min-h-0 overflow-hidden">
                       <div className="text-[10px] lg:text-[7cqh] font-bold tracking-[0.14em] text-slate-400">JUGA DIPANGGIL</div>
                       <div className="flex justify-center gap-1.5 mt-1 flex-wrap">
                         {companions.map((c) => (
-                          <span key={c.id} className="rounded-md bg-orange-50 border border-orange-200 px-2 py-0.5 text-xs lg:text-[8cqh] font-extrabold tabular-nums text-orange-700">{c.number}</span>
+                          <span key={c.id} className="rounded-md bg-orange-50 border border-orange-200 px-2 py-0.5 text-xs lg:text-[8cqh] font-extrabold text-orange-700 max-w-full truncate">{nameCall && hasRealName(c.name) ? String(c.name).trim() : <span className="tabular-nums">{c.number}</span>}</span>
                         ))}
                       </div>
                     </div>

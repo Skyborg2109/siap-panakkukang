@@ -302,7 +302,9 @@ stable
 security definer
 set search_path = public
 as $$
-  select role from public.profiles where id = auth.uid()
+  -- upper(): kebijakan membandingkan dengan 'ADMIN'/'PETUGAS' kapital,
+  -- jadi baris profiles ber-role huruf kecil ('petugas') tetap lolos.
+  select upper(role) from public.profiles where id = auth.uid()
 $$;
 
 -- Publik (masyarakat, tanpa login): baca master aktif + buat antrean

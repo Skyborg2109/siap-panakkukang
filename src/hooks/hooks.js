@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { hasRealName, kkCallNote } from '../utils/queue.js'
-import { callDestination } from '../lib/constants.js'
+import { callDestination, isNameCallService } from '../lib/constants.js'
 
 // const OPENING_SOUND = '/opening sound.mp3'
 // const CLOSING_SOUND = '/closing sound.mp3'
@@ -8,10 +8,11 @@ const OPENING_SOUND = `${import.meta.env.BASE_URL}opening sound.mp3`
 const CLOSING_SOUND = `${import.meta.env.BASE_URL}closing sound.mp3`
 
 // Putar file audio hingga selesai (resolve langsung bila gagal)
-function playFile(src) {
+function playFile(src, volume = 1) {
   return new Promise((resolve) => {
     try {
       const a = new Audio(encodeURI(src))
+      a.volume = volume
       let done = false
       const finish = () => { if (!done) { done = true; resolve() } }
       a.onended = finish
@@ -30,6 +31,20 @@ export function useSpeech() {
   const [enabled, setEnabled] = useState(() => {
     try { return localStorage.getItem('siap_tts') !== 'off' } catch { return true }
   })
+  // Volume suara 0–1 (default maksimal). Catatan: browser membatasi volume
+  // TTS maksimal 1.0 — kode tidak bisa mengeraskan melebihi 100% sistem.
+  const [volume, setVolumeState] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem('siap_volume'))
+      return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1
+    } catch { return 1 }
+  })
+  const setVolume = useCallback((v) => {
+    const c = Math.min(1, Math.max(0, Number(v)))
+    if (!Number.isFinite(c)) return
+    setVolumeState(c)
+    try { localStorage.setItem('siap_volume', String(c)) } catch { /* abaikan */ }
+  }, [])
   const [voices, setVoices] = useState([])
 
   useEffect(() => {
@@ -94,11 +109,12 @@ export function useSpeech() {
       u.lang = 'id-ID'
       u.rate = 0.95
       u.pitch = 1.05
+      u.volume = volume
       const v = pickVoice()
       if (v) u.voice = v
       window.speechSynthesis.speak(u)
     })
-  }, [enabled, supported, pickVoice])
+  }, [enabled, supported, pickVoice, volume])
 
   // Ucapkan 2x dengan jeda pendek agar panggilan lebih jelas terdengar
   const speakRepeat = useCallback((text, times = 2, onDone) => {
@@ -122,6 +138,7 @@ export function useSpeech() {
         u.lang = 'id-ID'
         u.rate = 0.95
         u.pitch = 1.05
+        u.volume = volume
         const v = pickVoice()
         if (v) u.voice = v
         if (n < times) {
@@ -142,7 +159,7 @@ export function useSpeech() {
       }
       say()
     })
-  }, [enabled, supported, pickVoice])
+  }, [enabled, supported, pickVoice, volume])
 
   // Rangkaian penuh: opening → pengumuman 2x → closing.
   // Generasi baru membatalkan rangkaian lama agar panggilan tak bertumpuk.
@@ -153,19 +170,24 @@ export function useSpeech() {
     const alive = () => callSeq.current === my
     window.speechSynthesis.cancel()
     window.speechSynthesis.resume()
-    playFile(OPENING_SOUND).then(() => {
+    playFile(OPENING_SOUND, volume).then(() => {
       if (!alive()) return
       speakRepeat(text, 2, () => {
-        if (alive()) playFile(CLOSING_SOUND)
+        if (alive()) playFile(CLOSING_SOUND, volume)
       })
     })
-  }, [enabled, supported, speakRepeat])
+  }, [enabled, supported, speakRepeat, volume])
 
   const announceQueue = useCallback((queue) => {
     if (!queue) return
     const num = String(queue.number || '').replace('-', ' ')
     // KTP / KK Online / KK Biasa → loket pelayanan; lainnya → ruang pelayanan
     const tujuan = queue.counter_name ? `, silakan menuju ${queue.counter_name}` : `, ${callDestination(queue)}`
+    // Perekaman KTP: panggil berbasis nama ("Panggilan atas nama X, ..."), bukan nomor
+    if (isNameCallService(queue) && hasRealName(queue.name)) {
+      announceWithJingle(`Panggilan atas nama ${String(queue.name).trim()}${tujuan}.`)
+      return
+    }
     // Nama opsional: kalau kosong / "Tanpa Nama", panggil nomor saja tanpa "atas nama"
     // IKD: selalu nomor saja tanpa nama warga
     const isIKD = String(queue.prefix || '').toUpperCase() === 'IKD'
@@ -183,11 +205,19 @@ export function useSpeech() {
     if (!rows.length) return
     if (rows.length === 1) return announceQueue(rows[0])
     const ordered = [...rows].sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-    const nums = ordered.map((q) => String(q.number || '').replace('-', ' '))
-    const last = nums.pop()
-    const joined = nums.length ? `${nums.join(', ')}, dan ${last}` : last
     const tujuan = ordered[0].counter_name ? `, silakan menuju ${ordered[0].counter_name}` : `, ${callDestination(ordered[0])}`
-    announceWithJingle(`Nomor antrean ${joined}${tujuan}.`)
+    // Perekaman KTP serentak: gabungkan nama-nama ("Panggilan atas nama A, B, dan C, ...")
+    if (isNameCallService(ordered[0]) && ordered.every((q) => hasRealName(q.name))) {
+      const names = ordered.map((q) => String(q.name).trim())
+      const last = names.pop()
+      const joined = names.length ? `${names.join(', ')}, dan ${last}` : last
+      announceWithJingle(`Panggilan atas nama ${joined}${tujuan}.`)
+      return
+    }
+    const nums = ordered.map((q) => String(q.number || '').replace('-', ' '))
+    const lastNum = nums.pop()
+    const joinedNums = nums.length ? `${nums.join(', ')}, dan ${lastNum}` : lastNum
+    announceWithJingle(`Nomor antrean ${joinedNums}${tujuan}.`)
   }, [announceQueue, announceWithJingle])
 
   const announceKK = useCallback((item) => {
@@ -201,7 +231,7 @@ export function useSpeech() {
     if (msg) announceWithJingle(msg)
   }, [announceWithJingle])
 
-  return { enabled, supported, toggle, wake, speak, speakRepeat, announceQueue, announceQueues, announceKK, announceBroadcast }
+  return { enabled, supported, toggle, wake, speak, speakRepeat, announceQueue, announceQueues, announceKK, announceBroadcast, volume, setVolume }
 }
 
 export function useClock(intervalMs = 1000) {

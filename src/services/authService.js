@@ -25,8 +25,10 @@ export async function login(email, password) {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.auth.signInWithPassword({ email: e, password })
     if (error) throw new Error('Email atau password salah.')
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
-    if (!profile) throw new Error('Profil pengguna belum terdaftar di tabel profiles.')
+    // maybeSingle: profil belum ada → null (bukan error coerce), agar pesan di bawah tampil jelas
+    const { data: profile, error: pErr } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle()
+    if (pErr) throw pErr
+    if (!profile) throw new Error('Akun login OK, tapi profil belum terdaftar di tabel profiles. Minta admin menambahkan baris profil (id = user id, role ADMIN/PETUGAS).')
     const role = String(profile.role || '').trim().toUpperCase()
     if (!['ADMIN', 'PETUGAS'].includes(role)) throw new Error(`Role akun ini tidak valid ("${profile.role}"). Minta admin ubah role di tabel profiles menjadi ADMIN / PETUGAS.`)
     const user = { id: data.user.id, email: e, name: profile.full_name || e, role, counter_id: null, counter_name: null }

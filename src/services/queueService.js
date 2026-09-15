@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase.js'
+import { supabase, isSupabaseConfigured, assertSupabaseSession, friendlySupabaseError } from '../lib/supabase.js'
 import { todayKey, makeQueueNumber } from '../utils/date.js'
 import { quotaFor } from '../lib/constants.js'
 import { createLocalQueue, getTodayQueues, updateLocalQueue, getAllLocalQueues, saveLocalQueue } from '../utils/queue.js'
@@ -79,9 +79,10 @@ export async function setStatus(id, status, extra = {}) {
   if (status === 'COMPLETED') patch.completed_at = new Date().toISOString()
 
   if (isSupabaseConfigured) {
+    await assertSupabaseSession()
     // Guard BR-05: cegah dua petugas melayani bersamaan (optimistic check)
     const { data, error } = await supabase.from('queues').update(patch).eq('id', id).select('*, services(name,prefix)').single()
-    if (error) throw error
+    if (error) throw friendlySupabaseError(error)
     return normalizeRow(data)
   }
   return updateLocalQueue(id, patch)
@@ -156,6 +157,7 @@ export async function callDirect({ service, number, name, calledAt }) {
   const holder = (name || '').trim() || 'Tanpa Nama'
 
   if (isSupabaseConfigured) {
+    await assertSupabaseSession()
     // Jalur utama: RPC SECURITY DEFINER (lolos RLS untuk insert CALLED).
     // Wajib jalankan migrasi supabase/schema.sql terbaru di SQL Editor.
     const { data: rpcData, error: rpcError } = await supabase.rpc('call_direct_number', {
@@ -176,7 +178,7 @@ export async function callDirect({ service, number, name, calledAt }) {
       if (/row-level security/i.test(rpcError?.message || '')) {
         throw new Error('Database menolak (RLS). Jalankan supabase/schema.sql terbaru di SQL Editor Supabase, lalu coba lagi.')
       }
-      throw rpcError
+      throw friendlySupabaseError(rpcError)
     }
 
     const { data: existing } = await supabase
@@ -224,7 +226,7 @@ export async function callDirect({ service, number, name, calledAt }) {
       if (/row-level security/i.test(error.message || '')) {
         throw new Error('Database menolak (RLS). Jalankan supabase/schema.sql terbaru di SQL Editor Supabase, lalu coba lagi.')
       }
-      throw error
+      throw friendlySupabaseError(error)
     }
     return normalizeRow(data)
   }
@@ -271,15 +273,26 @@ export async function callDirectMany({ service, raw, name }) {
   return out
 }
 
-// Reset seluruh antrean hari ini (tombol Reset Antrean Hari Ini)
+// Reset antrean hari ini TANPA menghapus riwayat: antrean yang masih aktif
+// (WAITING/CALLED/SERVING) ditandai SKIPPED sehingga panel & Display bersih,
+// sementara seluruh baris hari ini tetap tersimpan dan tampil di Riwayat.
+const ACTIVE_STATUSES = ['WAITING', 'CALLED', 'SERVING']
+
 export async function resetToday() {
   if (isSupabaseConfigured) {
-    const { error } = await supabase.from('queues').delete().eq('queue_date', todayKey())
+    const { error } = await supabase
+      .from('queues')
+      .update({ status: 'SKIPPED', updated_at: new Date().toISOString() })
+      .eq('queue_date', todayKey())
+      .in('status', ACTIVE_STATUSES)
     if (error) throw error
     return true
   }
-  const { clearTodayLocalQueues } = await import('../utils/queue.js')
-  return clearTodayLocalQueues()
+  const { getAllLocalQueues, updateLocalQueue } = await import('../utils/queue.js')
+  getAllLocalQueues()
+    .filter((q) => q.queue_date === todayKey() && ACTIVE_STATUSES.includes(q.status))
+    .forEach((q) => updateLocalQueue(q.id, { status: 'SKIPPED' }))
+  return true
 }
 
 // Info referensi antrean per layanan (untuk konfirmasi hapus layanan di admin)
