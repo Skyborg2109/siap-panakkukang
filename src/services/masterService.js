@@ -16,13 +16,30 @@ function lsSet(key, val) {
 }
 
 // ---------- SERVICES ----------
+// Demo: gabungkan seed baru yang belum ada di penyimpanan lama
+// (mis. KK Online / KK Biasa) tanpa menghapus kustomisasi admin.
+function withMissingSeeds(stored) {
+  const list = Array.isArray(stored) ? [...stored] : []
+  let changed = false
+  for (const seed of SEED_SERVICES) {
+    if (!list.some((s) => s.id === seed.id || (s.prefix || '').toUpperCase() === seed.prefix)) {
+      list.push(seed)
+      changed = true
+    }
+  }
+  return { list, changed }
+}
+
 export async function getServices() {
   if (isSupabaseConfigured) {
     const { data, error } = await supabase.from('services').select('*').eq('is_active', true).order('sort_order')
     if (error) throw error
     return data
   }
-  return lsGet('siap_services_v2', SEED_SERVICES).filter((s) => s.is_active)
+  const stored = lsGet('siap_services_v2', SEED_SERVICES)
+  const { list, changed } = withMissingSeeds(stored)
+  if (changed) lsSet('siap_services_v2', list)
+  return list.filter((s) => s.is_active)
 }
 
 export async function getAllServices() {
@@ -31,7 +48,10 @@ export async function getAllServices() {
     if (error) throw error
     return data
   }
-  return lsGet('siap_services_v2', SEED_SERVICES)
+  const stored = lsGet('siap_services_v2', SEED_SERVICES)
+  const { list, changed } = withMissingSeeds(stored)
+  if (changed) lsSet('siap_services_v2', list)
+  return list
 }
 
 export async function upsertService(payload) {
@@ -75,7 +95,8 @@ export async function getRequirements(serviceId) {
   }
   const all = lsGet('siap_requirements', SEED_REQUIREMENTS)
   const found = all.find((r) => r.service_id === serviceId)
-  return (found?.items || []).map((text, i) => ({ id: `${serviceId}-${i}`, requirement: text }))
+  const seed = SEED_REQUIREMENTS.find((r) => r.service_id === serviceId)
+  return ((found || seed)?.items || []).map((text, i) => ({ id: `${serviceId}-${i}`, requirement: text }))
 }
 
 export async function getInformation() {

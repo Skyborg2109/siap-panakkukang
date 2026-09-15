@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore.js'
 
 import Information from '../pages/public/Information.jsx'
 import IKD from '../pages/public/IKD.jsx'
+import TakeQueue from '../pages/public/TakeQueue.jsx'
 import Display from '../pages/display/Display.jsx'
 import Login from '../pages/auth/Login.jsx'
 
@@ -34,11 +35,13 @@ const pub = (el) => <PublicLayout>{el}</PublicLayout>
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to="/ambil-antrean" replace />} />
       <Route path="/information" element={pub(<Information />)} />
       <Route path="/ikd" element={pub(<IKD />)} />
+      <Route path="/ambil-antrean" element={pub(<TakeQueue />)} />
       <Route path="/login" element={<Login />} />
-      <Route path="/display" element={<Display />} />
+      {/* Monitor hanya untuk petugas/admin yang login (TV ruang pelayanan login sekali sebagai petugas) */}
+      <Route path="/display" element={<RequireAuth roles={['PETUGAS', 'ADMIN']}><Display /></RequireAuth>} />
 
       <Route path="/petugas" element={<Navigate to="/petugas/queue" replace />} />
       <Route path="/petugas/queue" element={<RequireAuth roles={['PETUGAS', 'ADMIN']}><PetugasQueue /></RequireAuth>} />

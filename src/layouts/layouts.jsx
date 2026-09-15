@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { MonitorPlay, Info, Fingerprint, LogIn, LogOut, ExternalLink, Menu, X } from 'lucide-react'
+import { MonitorPlay, Info, Fingerprint, LogIn, LogOut, ExternalLink, Menu, X, Ticket } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore.js'
 import { logout } from '../services/authService.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
@@ -32,21 +32,6 @@ function GovBrand() {
         </div>
       </div>
     </div>
-  )
-}
-
-function MonitorPill({ to = '/display', label = 'Monitor' }) {
-  return (
-    <Link
-      to={to}
-      target={to === '/display' ? '_blank' : undefined}
-      rel="noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-700 hover:bg-orange-100 transition whitespace-nowrap"
-    >
-      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-      {label}
-      {to === '/display' && <ExternalLink size={12} className="opacity-60" />}
-    </Link>
   )
 }
 
@@ -123,10 +108,10 @@ export default function PublicLayout({ children }) {
           {!isSupabaseConfigured && (
             <span className="hidden sm:inline-flex badge bg-amber-100 text-amber-800 border border-amber-200">Mode Demo</span>
           )}
-          <MonitorPill to="/display" label="Monitor Antrean" />
         </div>
         <div className="h-[3px] bg-orange-500" />
         <div className="max-w-6xl mx-auto px-4 py-2 hidden md:flex items-center gap-1 text-sm font-medium text-slate-600">
+          <Link to="/ambil-antrean" className="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 font-bold hover:bg-orange-100">Ambil Antrean</Link>
           <Link to="/information" className="px-3 py-1.5 rounded-lg hover:bg-slate-100">Informasi</Link>
           <Link to="/ikd" className="px-3 py-1.5 rounded-lg hover:bg-slate-100">IKD</Link>
           <div className="flex-1" />
@@ -140,9 +125,9 @@ export default function PublicLayout({ children }) {
           )}
         </div>
         <div className="md:hidden border-t border-slate-100 px-4 py-2 flex gap-2 overflow-x-auto text-sm text-slate-600">
+          <Link to="/ambil-antrean" className="flex items-center gap-1 px-2 py-1.5 font-bold text-orange-700"><Ticket size={15} /> Antrean</Link>
           <Link to="/information" className="flex items-center gap-1 px-2 py-1.5"><Info size={15} /> Info</Link>
           <Link to="/ikd" className="flex items-center gap-1 px-2 py-1.5"><Fingerprint size={15} /> IKD</Link>
-          <Link to="/display" className="flex items-center gap-1 px-2 py-1.5"><MonitorPlay size={15} /> TV</Link>
           <Link to="/login" className="flex items-center gap-1 px-2 py-1.5"><LogIn size={15} /> Login</Link>
         </div>
       </header>
@@ -231,7 +216,6 @@ export function DashboardLayout({ children, menu, title, subtitle, eyebrow = 'PE
             <h1 className="text-lg font-extrabold text-slate-900 leading-tight">{title}</h1>
             {subtitle && <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>}
           </div>
-          <MonitorPill to="/display" label="Monitor" />
         </div>
         <div className="p-4 md:p-6">{children}</div>
       </div>

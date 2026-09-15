@@ -379,18 +379,20 @@ create policy "admin all profiles" on public.profiles
 insert into public.services (name, prefix, description, sort_order, daily_quota) values
   ('Antrian KTP','KTP','KTP-el baru, perpanjangan, rusak / hilang',1,50),
   ('Perekaman KTP','REKAM','Perekaman foto, iris & tanda tangan digital',2,50),
-  ('Aktivasi IKD','IKD','Aktivasi Identitas Kependudukan Digital',3,100)
+  ('Aktivasi IKD','IKD','Aktivasi Identitas Kependudukan Digital',3,100),
+  ('KK Online (Lontara+)','KKO','Perubahan data KK via pengajuan online aplikasi Lontara+',4,50),
+  ('KK Biasa','KKB','Urus / cetak ulang KK & perubahan data langsung oleh tim Dukcapil',5,50)
 on conflict do nothing;
 
 -- Kuota untuk database yang sudah ter-seed sebelum kolom daily_quota ada:
 update public.services set daily_quota = 100 where prefix = 'IKD' and daily_quota is null;
-update public.services set daily_quota = 50 where prefix in ('KTP','REKAM') and daily_quota is null;
+update public.services set daily_quota = 50 where prefix in ('KTP','REKAM','KKO','KKB') and daily_quota is null;
 
 -- Tabel counters dipertahankan demi kompatibilitas, tapi tidak dipakai aplikasi.
--- Untuk database yang sudah ter-seed 7 layanan, pangkas ke 3 jenis antrean:
--- delete from public.queues where service_id in (select id from public.services where prefix not in ('KTP','REKAM','IKD'));
--- delete from public.service_requirements where service_id in (select id from public.services where prefix not in ('KTP','REKAM','IKD'));
--- delete from public.services where prefix not in ('KTP','REKAM','IKD');
+-- Untuk database yang sudah ter-seed 7 layanan, pangkas ke 5 jenis antrean:
+-- delete from public.queues where service_id in (select id from public.services where prefix not in ('KTP','REKAM','IKD','KKO','KKB'));
+-- delete from public.service_requirements where service_id in (select id from public.services where prefix not in ('KTP','REKAM','IKD','KKO','KKB'));
+-- delete from public.services where prefix not in ('KTP','REKAM','IKD','KKO','KKB');
 -- update public.services set name = 'Antrian KTP' where prefix = 'KTP';
 -- update public.services set name = 'Perekaman KTP' where prefix = 'REKAM';
 

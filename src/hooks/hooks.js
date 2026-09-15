@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { hasRealName, kkCallNote } from '../utils/queue.js'
+import { callDestination } from '../lib/constants.js'
 
 // const OPENING_SOUND = '/opening sound.mp3'
 // const CLOSING_SOUND = '/closing sound.mp3'
@@ -163,7 +164,8 @@ export function useSpeech() {
   const announceQueue = useCallback((queue) => {
     if (!queue) return
     const num = String(queue.number || '').replace('-', ' ')
-    const tujuan = queue.counter_name ? `, silakan menuju ${queue.counter_name}` : ', silakan masuk ke ruang pelayanan'
+    // KTP / KK Online / KK Biasa → loket pelayanan; lainnya → ruang pelayanan
+    const tujuan = queue.counter_name ? `, silakan menuju ${queue.counter_name}` : `, ${callDestination(queue)}`
     // Nama opsional: kalau kosong / "Tanpa Nama", panggil nomor saja tanpa "atas nama"
     // IKD: selalu nomor saja tanpa nama warga
     const isIKD = String(queue.prefix || '').toUpperCase() === 'IKD'
@@ -174,7 +176,7 @@ export function useSpeech() {
   }, [announceWithJingle])
 
   // Panggilan serentak beberapa nomor: satu kalimat gabungan
-  // ("Nomor antrean KTP 5, KTP 6, dan KTP 7, silakan masuk ke ruang pelayanan.")
+  // ("Nomor antrean KTP 5, KTP 6, dan KTP 7, silakan maju ke depan loket pelayanan.")
   // — satu nomor didelegasikan ke announceQueue (ikut aturan nama/IKD).
   const announceQueues = useCallback((list) => {
     const rows = (list || []).filter(Boolean)
@@ -184,7 +186,7 @@ export function useSpeech() {
     const nums = ordered.map((q) => String(q.number || '').replace('-', ' '))
     const last = nums.pop()
     const joined = nums.length ? `${nums.join(', ')}, dan ${last}` : last
-    const tujuan = ordered[0].counter_name ? `, silakan menuju ${ordered[0].counter_name}` : ', silakan masuk ke ruang pelayanan'
+    const tujuan = ordered[0].counter_name ? `, silakan menuju ${ordered[0].counter_name}` : `, ${callDestination(ordered[0])}`
     announceWithJingle(`Nomor antrean ${joined}${tujuan}.`)
   }, [announceQueue, announceWithJingle])
 

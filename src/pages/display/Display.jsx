@@ -8,6 +8,7 @@ import { useSpeech, useClock } from '../../hooks/hooks.js'
 import { GovLogos } from '../../layouts/layouts.jsx'
 import { formatClock, formatDateFull } from '../utils-imports.js'
 import { hasRealName, kkCallNote } from '../../utils/queue.js'
+import { isLoketService } from '../../lib/constants.js'
 
 // Judul header slideshow per kategori gambar (ditampilkan realtime mengikuti slide)
 const CATEGORY_META = {
@@ -318,7 +319,7 @@ export default function Display() {
               )}
               {called && (
                 <div className="border-t border-slate-100 mt-3 pt-2.5 text-sm tabular-nums">
-                  <span className="font-semibold text-orange-700">Sedang Dilayani di Ruang Pelayanan</span>
+                  <span className="font-semibold text-orange-700">{isLoketService(service) ? 'Silakan maju ke depan loket pelayanan' : 'Sedang Dilayani di Ruang Pelayanan'}</span>
                 </div>
               )}
             </div>

@@ -59,6 +59,8 @@ function colorFor(service, index) {
   if (p === 'KTP') return PALETTE.orange
   if (p === 'REKAM') return PALETTE.blue
   if (p === 'IKD') return PALETTE.green
+  if (p === 'KKO') return PALETTE.violet
+  if (p === 'KKB') return PALETTE.rose
   return PALETTE[FALLBACK[index % FALLBACK.length]]
 }
 
@@ -133,7 +135,7 @@ export default function PetugasQueue() {
     return () => { clearInterval(t); window.removeEventListener('siap:queues-changed', onCh); window.removeEventListener('storage', onCh) }
   }, [refresh])
 
-  // Tiga jenis antrean: Antrian KTP, Perekaman KTP, IKD
+  // Jenis antrean aktif dari master (KTP, Perekaman, IKD, KK Online, KK Biasa, …)
   const visibleServices = services
 
   const activeByService = useMemo(() => {
@@ -256,7 +258,7 @@ export default function PetugasQueue() {
     <DashboardLayout
       menu={menu}
       title="Dashboard — Kecamatan Panakkukang"
-      subtitle="Panggil & kelola tiga jenis antrean: KTP, Perekaman KTP, IKD"
+      subtitle="Panggil & kelola seluruh jenis antrean aktif"
     >
       {notice && (
         <div className={`card p-3 mb-4 text-sm font-semibold border flex items-center gap-2 animate-slide-in ${notice.tone === 'warn' ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>

@@ -18,7 +18,8 @@ export default function IKD() {
       </div>
 
       <div className="card p-6">
-        <div className="whitespace-pre-line text-[15px] leading-relaxed text-slate-700">{ikd?.content || 'Memuat…'}</div>
+        {/* Normalisasi \n literal (konten lama tersimpan sebagai teks "\n") jadi baris baru */}
+        <div className="whitespace-pre-line text-[15px] leading-relaxed text-slate-700">{(ikd?.content || 'Memuat…').replace(/\\n/g, '\n')}</div>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3">
