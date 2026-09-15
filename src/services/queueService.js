@@ -1,7 +1,7 @@
 import { supabase, isSupabaseConfigured, assertSupabaseSession, friendlySupabaseError } from '../lib/supabase.js'
 import { todayKey, makeQueueNumber } from '../utils/date.js'
 import { quotaFor } from '../lib/constants.js'
-import { createLocalQueue, getTodayQueues, updateLocalQueue, getAllLocalQueues, saveLocalQueue } from '../utils/queue.js'
+import { createLocalQueue, getTodayQueues, updateLocalQueue, getAllLocalQueues, saveLocalQueue, markResetNow } from '../utils/queue.js'
 
 // Ambil nomor antrean — via RPC Supabase (anti-duplikat + cek kuota) atau local fallback
 export async function takeQueue({ service, name, nik }) {
@@ -292,12 +292,14 @@ export async function resetToday() {
       .eq('queue_date', todayKey())
       .in('status', ACTIVE_STATUSES)
     if (error) throw error
+    markResetNow()
     return true
   }
   const { getAllLocalQueues, updateLocalQueue } = await import('../utils/queue.js')
   getAllLocalQueues()
     .filter((q) => q.queue_date === todayKey() && ACTIVE_STATUSES.includes(q.status))
     .forEach((q) => updateLocalQueue(q.id, { status: 'SKIPPED' }))
+  markResetNow()
   return true
 }
 

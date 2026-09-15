@@ -183,7 +183,7 @@ export function useSpeech() {
   const announceQueue = useCallback((queue) => {
     if (!queue) return
     const num = String(queue.number || '').replace('-', ' ')
-    // KTP / KK Online / KK Biasa → loket pelayanan; lainnya → ruang pelayanan
+    // KK Online / KK Biasa → loket pelayanan; KTP / REKAM / IKD → ruang pelayanan
     const tujuan = queue.counter_name ? `, silakan menuju ${queue.counter_name}` : `, ${callDestination(queue)}`
     // Perekaman KTP: panggil berbasis nama ("Panggilan atas nama X, ..."), bukan nomor
     if (isNameCallService(queue) && hasRealName(queue.name)) {
@@ -200,7 +200,7 @@ export function useSpeech() {
   }, [announceWithJingle])
 
   // Panggilan serentak beberapa nomor: satu kalimat gabungan
-  // ("Nomor antrean KTP 5, KTP 6, dan KTP 7, silakan maju ke depan loket pelayanan.")
+  // ("Nomor antrean KKB 5, KKB 6, dan KKB 7, silakan maju ke depan loket pelayanan.")
   // — satu nomor didelegasikan ke announceQueue (ikut aturan nama/IKD).
   const announceQueues = useCallback((list) => {
     const rows = (list || []).filter(Boolean)

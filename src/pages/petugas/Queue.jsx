@@ -12,7 +12,7 @@ import {
 import { getServices } from '../../services/masterService.js'
 import { callKKCase, sendBroadcast } from '../../services/displayService.js'
 import { quotaFor, isNameCallService } from '../../lib/constants.js'
-import { hasRealName } from '../../utils/queue.js'
+import { hasRealName, getTodayResetAt } from '../../utils/queue.js'
 import { Modal, Field } from '../../components/ui/ui.jsx'
 
 const menu = [
@@ -107,8 +107,12 @@ export default function PetugasQueue() {
   }
   useEffect(() => () => clearTimeout(noticeTimer.current), [])
 
-  // Kuota kupon fisik per layanan per hari
-  const issuedOf = (serviceId) => queues.filter((q) => q.service_id === serviceId).length
+  // Kuota kupon fisik per layanan per hari — dihitung dari baris yang terbit
+  // SETELAH reset terakhir hari ini, agar progress bar ikut nol saat reset.
+  const issuedOf = (serviceId) => {
+    const since = getTodayResetAt()
+    return queues.filter((q) => q.service_id === serviceId && (!since || (q.created_at || '') >= since)).length
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -453,7 +457,7 @@ export default function PetugasQueue() {
                     <span className={`badge ${c.badge} text-white !text-[10px] font-mono shrink-0`}>{svc.prefix}</span>
                     <span className="text-[13px] font-semibold text-slate-700 flex-1 truncate">{svc.name}</span>
                   </div>
-                  <div className="mt-1.5 flex items-center gap-2" title={`Kupon terbit ${issued} dari ${quota} hari ini`}>
+                  <div className="mt-1.5 flex items-center gap-2" title={getTodayResetAt() ? `Kupon terbit ${issued} dari ${quota} (ronde ini, setelah reset)` : `Kupon terbit ${issued} dari ${quota} hari ini`}>
                     <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                       <div className={`h-full rounded-full ${full ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, (issued / quota) * 100)}%` }} />
                     </div>

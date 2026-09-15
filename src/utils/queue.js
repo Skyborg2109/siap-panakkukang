@@ -54,6 +54,33 @@ export function clearTodayLocalQueues() {
   return true
 }
 
+// Penanda reset ronde (localStorage, per browser panel): progress bar kuota
+// dihitung dari baris yang terbit SETELAH reset terakhir hari ini, agar bar
+// ikut nol saat "Reset Antrean Hari Ini" ditekan. Penegakan kuota harian
+// (di RPC / kuota kupon fisik) tetap menghitung SELURUH baris hari ini.
+const LS_RESET_AT = 'siap_reset_at'
+
+export function markResetNow() {
+  try {
+    const v = new Date().toISOString()
+    localStorage.setItem(LS_RESET_AT, v)
+    return v
+  } catch { return null }
+}
+
+// ISO timestamp reset bila terjadi hari ini (kalender lokal), selain itu null.
+export function getTodayResetAt() {
+  try {
+    const raw = localStorage.getItem(LS_RESET_AT)
+    if (!raw) return null
+    const d = new Date(raw)
+    const now = new Date()
+    if (Number.isNaN(d.getTime())) return null
+    const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+    return sameDay ? raw : null
+  } catch { return null }
+}
+
 export function nextSequenceForService(serviceId) {
   const today = getTodayQueues().filter((q) => q.service_id === serviceId)
   const max = today.reduce((m, q) => Math.max(m, q.sequence || 0), 0)

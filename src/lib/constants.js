@@ -75,20 +75,20 @@ export const SEED_REQUIREMENTS = [
   { service_id: 'svc-kk-biasa', items: ['Fotokopi KK lama', 'KTP-el', 'Dokumen pendukung (cth: akta lahir, buku nikah, SKPWNI bila pindah)'] },
 ]
 
-// Tujuan pemanggilan: KTP-el, KK Online & KK Biasa diurus dulu di loket
-// pelayanan (maju ke depan loket); REKAM & IKD langsung ke ruang pelayanan.
+// Tujuan pemanggilan: hanya KK Online & KK Biasa yang dilayani di loket
+// (maju ke depan loket); KTP-el, REKAM & IKD masuk ke ruang pelayanan.
 // Deteksi pola (bukan daftar prefix kaku) agar tetap benar walau admin
 // membuat prefix varian sendiri, mis. KKONLINE / KKBISA / KK.
-export const LOKET_PREFIXES = ['KTP', 'KKO', 'KKB']
+export const LOKET_PREFIXES = ['KKO', 'KKB']
 
 export function isLoketService(serviceOrPrefix) {
   const obj = typeof serviceOrPrefix === 'string' ? {} : serviceOrPrefix || {}
   const p = String(typeof serviceOrPrefix === 'string' ? serviceOrPrefix : obj.prefix || '').toUpperCase()
   if (LOKET_PREFIXES.includes(p) || (p.startsWith('KK') && p.length > 0)) return true
-  // Fallback via nama layanan (bila prefix tak dikenal / kosong)
+  // Fallback via nama layanan (bila prefix tak dikenal / kosong):
+  // hanya yang berbau KK yang ke loket — sisanya (termasuk KTP) ke ruang pelayanan.
   const nm = String(obj.service_name || obj.name || '').toLowerCase()
-  if (nm.includes('kk')) return true
-  return nm.includes('ktp') && !nm.includes('rekam')
+  return nm.includes('kk')
 }
 
 // Frasa tujuan lengkap untuk TTS + Display (tanpa koma depan)
