@@ -237,24 +237,29 @@ export default function Display() {
       {/* Body */}
       <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_400px] gap-4 p-3 md:p-4 overflow-hidden">
         {/* Kiri: slideshow informasi */}
-        <div className="bg-[#0f1b33] text-white rounded-2xl p-4 md:p-6 flex flex-col min-h-0 overflow-hidden relative">
+        <div className={`bg-[#0f1b33] text-white rounded-2xl flex flex-col min-h-0 overflow-hidden relative ${current?.kind === 'photo' ? '' : 'p-4 md:p-6'}`}>
+          {current?.kind === 'photo' ? (
+            // Foto tunggal (alur): tanpa teks sama sekali, gambar full-cover seluruh panel
+            <div key={`body-${slide}`} className="animate-slide-in absolute inset-0">
+              <img
+                src={current.item.url || current.item.file_path}
+                alt={current.item.title || current.item.name}
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute bottom-3 left-0 right-0 flex gap-1.5 justify-center">
+                {slides.map((_, i) => (
+                  <span key={i} className={`h-2 rounded-full transition-all ${i === slide % slides.length ? 'w-8 bg-orange-500' : 'w-2 bg-white/50'}`} />
+                ))}
+              </div>
+            </div>
+          ) : (
+          <>
           <div className="text-center">
             <div className="text-[11px] font-bold tracking-[0.18em] text-orange-300">LAYAR INFROMASI</div>
             <div key={slide} className="animate-slide-in text-lg md:text-xl font-extrabold mt-1">{current?.heading}</div>
           </div>
           <div key={`body-${slide}`} className="animate-slide-in mt-3 flex-1 min-h-0 overflow-hidden flex flex-col">
-            {current?.kind === 'photo' ? (
-              <div className="flex-1 min-h-0 flex flex-col items-center overflow-hidden">
-                <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
-                  <img
-                    src={current.item.url || current.item.file_path}
-                    alt={current.item.title || current.item.name}
-                    className="max-h-full max-w-full object-contain rounded-xl"
-                  />
-                </div>
-                <div className="font-bold mt-2 shrink-0">{current.item.title || current.item.name}</div>
-              </div>
-            ) : current?.kind === 'photos' ? (
+            {current?.kind === 'photos' ? (
               <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
                 {current.items.map((im) => (
                   <figure key={im.id} className="flex-1 min-w-0 min-h-0 flex flex-col items-center overflow-hidden">
@@ -282,6 +287,8 @@ export default function Display() {
               <span key={i} className={`h-2 rounded-full transition-all ${i === slide % slides.length ? 'w-8 bg-orange-500' : 'w-2 bg-white/20'}`} />
             ))}
           </div>
+          </>
+          )}
         </div>
 
         {/* Kanan: kartu panggilan per jenis antrean */}

@@ -43,6 +43,18 @@ function DashboardNavItem({ to, icon, children, external = false }) {
         : 'text-slate-300/90 hover:bg-white/10 hover:text-white'
     }`
   if (external) {
+    // Rute internal (diawali "/") dibuka di tab baru via Link agar basename
+    // BrowserRouter ("/siap-panakkukang/" di GitHub Pages) tetap dipakai —
+    // <a href="/display"> polos akan lari ke domain root dan 404.
+    if (to.startsWith('/')) {
+      return (
+        <Link to={to} target="_blank" rel="noreferrer" className={cls({ isActive: false })}>
+          {icon}
+          <span className="flex-1">{children}</span>
+          <ExternalLink size={13} className="opacity-50" />
+        </Link>
+      )
+    }
     return (
       <a href={to} target="_blank" rel="noreferrer" className={cls({ isActive: false })}>
         {icon}

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import PublicLayout from '../layouts/layouts.jsx'
 import { useAuthStore } from '../stores/authStore.js'
 
@@ -56,7 +56,7 @@ export default function AppRoutes() {
       <Route path="/admin/display" element={<RequireAuth roles={['ADMIN']}><AdminDisplay /></RequireAuth>} />
       <Route path="/admin/statistics" element={<RequireAuth roles={['ADMIN']}><AdminStatistics /></RequireAuth>} />
 
-      <Route path="*" element={pub(<div className="card p-10 text-center"><h1 className="text-2xl font-bold">404 — Halaman tidak ditemukan</h1><a href="/login" className="text-orange-700 underline">Kembali ke halaman login</a></div>)} />
+      <Route path="*" element={pub(<div className="card p-10 text-center"><h1 className="text-2xl font-bold">404 — Halaman tidak ditemukan</h1><Link to="/login" className="text-orange-700 underline">Kembali ke halaman login</Link></div>)} />
     </Routes>
   )
 }
