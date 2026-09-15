@@ -282,6 +282,22 @@ export async function resetToday() {
   return clearTodayLocalQueues()
 }
 
+// Info referensi antrean per layanan (untuk konfirmasi hapus layanan di admin)
+export async function getServiceQueueInfo(serviceId) {
+  if (isSupabaseConfigured) {
+    const { count, error } = await supabase.from('queues').select('id', { count: 'exact', head: true }).eq('service_id', serviceId)
+    if (error) throw error
+    let lastDate = null
+    if (count > 0) {
+      const { data } = await supabase.from('queues').select('queue_date').eq('service_id', serviceId).order('queue_date', { ascending: false }).limit(1).maybeSingle()
+      lastDate = data?.queue_date || null
+    }
+    return { count: count || 0, lastDate }
+  }
+  const rows = getAllLocalQueues().filter((q) => q.service_id === serviceId)
+  return { count: rows.length, lastDate: rows.reduce((m, q) => (q.queue_date > m ? q.queue_date : m), null) }
+}
+
 export async function getHistory({ date = todayKey(), status, limit = 200 } = {}) {
   if (isSupabaseConfigured) {
     let q = supabase.from('queues').select('*, services(name,prefix)').eq('queue_date', date).order('created_at', { ascending: false }).limit(limit)

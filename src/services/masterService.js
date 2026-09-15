@@ -91,7 +91,27 @@ export async function deleteService(id) {
     throw error
   }
   lsSet('siap_services_v2', lsGet('siap_services_v2', SEED_SERVICES).filter((s) => s.id !== id))
-  return true
+  return { deleted: true }
+}
+
+// Hapus permanen beserta SELURUH riwayat antreannya (dipakai setelah admin
+// dikonfirmasi dengan jumlah riwayat — sadar risiko: statistik layanan ikut hilang).
+// service_requirements ikut terhapus otomatis via FK on delete cascade.
+export async function deleteServiceWithHistory(id) {
+  if (isSupabaseConfigured) {
+    const { error: qErr } = await supabase.from('queues').delete().eq('service_id', id)
+    if (qErr) throw qErr
+    const { error } = await supabase.from('services').delete().eq('id', id)
+    if (error) throw error
+    return { deleted: true }
+  }
+  try {
+    const allQ = JSON.parse(localStorage.getItem('siap_queues') || '[]')
+    localStorage.setItem('siap_queues', JSON.stringify(allQ.filter((q) => q.service_id !== id)))
+    window.dispatchEvent(new Event('siap:queues-changed'))
+  } catch { /* abaikan */ }
+  lsSet('siap_services_v2', lsGet('siap_services_v2', SEED_SERVICES).filter((s) => s.id !== id))
+  return { deleted: true }
 }
 
 // ---------- REQUIREMENTS / INFORMATION / ANNOUNCEMENTS ----------

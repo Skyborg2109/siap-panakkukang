@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import AdminShell from './AdminShell.jsx'
-import { getAllServices, upsertService, deleteService } from '../../services/masterService.js'
+import { getAllServices, upsertService, deleteService, deleteServiceWithHistory } from '../../services/masterService.js'
+import { getServiceQueueInfo } from '../../services/queueService.js'
+import { formatDateID } from '../../utils/date.js'
 import { quotaFor } from '../../lib/constants.js'
 import { Modal, Field, Empty } from '../../components/ui/ui.jsx'
 
@@ -22,10 +24,31 @@ export default function AdminServices() {
     setOpen(false); setForm(blank); load()
   }
   const del = async (s) => {
+    // FK restrict menghitung SEMUA tanggal, sementara halaman Riwayat hanya
+    // menampilkan hari ini — cek dulu agar pesan konfirmasi jujur soal jumlahnya.
+    let info = { count: 0, lastDate: null }
+    try { info = await getServiceQueueInfo(s.id) } catch { /* abaikan, lanjut hapus */ }
+    if (info.count > 0) {
+      const ok = confirm(
+        `"${s.name}" masih direferensikan ${info.count} antrean` +
+        (info.lastDate ? ` (terakhir ${formatDateID(info.lastDate)})` : '') +
+        `. Catatan: halaman Riwayat hanya menampilkan antrean hari ini.\n\n` +
+        `OK = hapus permanen beserta ${info.count} riwayat tersebut (statistik layanan ikut hilang).\n` +
+        `Batal = tidak jadi (gunakan Ubah → Nonaktif bila hanya ingin menyembunyikan).`,
+      )
+      if (!ok) return
+      try {
+        await deleteServiceWithHistory(s.id)
+        load()
+      } catch (e) {
+        alert(`Gagal menghapus: ${e.message || e}`)
+      }
+      return
+    }
     if (!confirm(`Hapus layanan "${s.name}"?`)) return
     try {
       const res = await deleteService(s.id)
-      if (res?.deactivated) alert(`"${s.name}" punya riwayat antrean sehingga tidak bisa dihapus permanen — layanan dinonaktifkan (disembunyikan dari warga & petugas).`)
+      if (res?.deactivated) alert(`"${s.name}" ternyata punya riwayat antrean sehingga tidak bisa dihapus permanen — layanan dinonaktifkan (disembunyikan dari warga & petugas).`)
       load()
     } catch (e) {
       alert(`Gagal menghapus: ${e.message || e}`)
