@@ -10,6 +10,9 @@ export async function takeQueue({ service, name, nik }) {
       p_service_id: service.id,
       p_name: name,
       p_nik: nik || null,
+      // Tanggal lokal browser (WITA) — jangan andalkan current_date DB (UTC).
+      // Lihat komentar zona waktu di supabase/schema.sql.
+      p_queue_date: todayKey(),
     })
     if (error) throw error
     return Array.isArray(data) ? data[0] : data
@@ -165,6 +168,9 @@ export async function callDirect({ service, number, name, calledAt }) {
       p_sequence: seq,
       p_name: holder,
       p_called_at: now,
+      // Tanggal lokal browser (WITA) — jangan andalkan current_date DB (UTC).
+      // Lihat komentar zona waktu di supabase/schema.sql.
+      p_queue_date: todayKey(),
     })
     if (!rpcError) return normalizeRow(Array.isArray(rpcData) ? rpcData[0] : rpcData)
     // Fungsi belum ada di DB (belum migrasi) → fallback ke insert langsung.

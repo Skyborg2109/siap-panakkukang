@@ -131,8 +131,16 @@ create table if not exists public.broadcasts (
 
 -- ============================================================
 -- RPC: take_queue_number — anti-duplikat (transaksi DB)
+-- p_queue_date WAJIB diisi aplikasi dengan tanggal lokal browser (todayKey(),
+-- zona WITA). Database berjalan dalam UTC — memakai current_date langsung
+-- membuat baris 00:00–08:00 WITA tercatat "kemarin" sehingga tak terlihat
+-- dashboard/Display yang membaca tanggal browser. Lihat call_direct_number.
 -- ============================================================
-create or replace function public.take_queue_number(p_service_id uuid, p_name text, p_nik text default null)
+-- Ganti signature (tambah parameter) → create or replace tidak bisa,
+-- jadi drop dulu (grant dipasang ulang di bagian GRANT di bawah).
+drop function if exists public.take_queue_number(uuid, text, text);
+drop function if exists public.take_queue_number(uuid, text, text, date);
+create function public.take_queue_number(p_service_id uuid, p_name text, p_nik text default null, p_queue_date date default current_date)
 returns public.queues
 language plpgsql
 security definer
@@ -145,6 +153,7 @@ declare
   v_count int;
   v_row public.queues%rowtype;
 begin
+  p_queue_date := coalesce(p_queue_date, current_date);
   select * into v_service from public.services where id = p_service_id and is_active = true;
   if not found then
     raise exception 'Layanan tidak aktif / tidak ditemukan';
@@ -157,22 +166,22 @@ begin
   );
   select count(*) into v_count
   from public.queues
-  where queue_date = current_date and service_id = p_service_id;
+  where queue_date = p_queue_date and service_id = p_service_id;
   if v_count >= v_quota then
     raise exception 'Kuota % hari ini sudah penuh (%)', v_service.name, v_quota;
   end if;
 
   -- Kunci transaksi per layanan per hari agar dua petugas tak dapat nomor sama.
   -- (FOR UPDATE tidak bisa dipakai bersama fungsi agregat seperti max(), jadi pakai advisory lock.)
-  perform pg_advisory_xact_lock(hashtext(p_service_id::text || current_date::text));
+  perform pg_advisory_xact_lock(hashtext(p_service_id::text || p_queue_date::text));
 
   select coalesce(max(sequence), 0) + 1 into v_seq
   from public.queues
-  where queue_date = current_date and service_id = p_service_id;
+  where queue_date = p_queue_date and service_id = p_service_id;
 
-  insert into public.queues (service_id, service_name, prefix, sequence, number, name, nik, status)
+  insert into public.queues (queue_date, service_id, service_name, prefix, sequence, number, name, nik, status)
   values (
-    p_service_id, v_service.name, v_service.prefix, v_seq,
+    p_queue_date, p_service_id, v_service.name, v_service.prefix, v_seq,
     v_service.prefix || '-' || v_seq::text,
     p_name, nullif(p_nik, ''), 'WAITING'
   )
@@ -187,8 +196,13 @@ $$;
 -- (hanya boleh WAITING), jadi perlu RPC SECURITY DEFINER seperti
 -- take_queue_number agar lolos RLS. Kalau nomor sudah ada hari ini
 -- → panggil ulang (update CALLED). Dipakai queueService.callDirect.
+-- p_queue_date: tanggal lokal browser (WITA), BUKAN current_date (UTC) —
+-- lihat komentar take_queue_number di atas.
 -- ============================================================
-create or replace function public.call_direct_number(p_service_id uuid, p_sequence int, p_name text default 'Tanpa Nama', p_called_at timestamptz default now())
+-- Ganti signature → drop dulu (grant dipasang ulang di bagian GRANT).
+drop function if exists public.call_direct_number(uuid, int, text, timestamptz);
+drop function if exists public.call_direct_number(uuid, int, text, timestamptz, date);
+create function public.call_direct_number(p_service_id uuid, p_sequence int, p_name text default 'Tanpa Nama', p_called_at timestamptz default now(), p_queue_date date default current_date)
 returns public.queues
 language plpgsql
 security definer
@@ -205,6 +219,7 @@ begin
   if p_sequence is null or p_sequence < 1 or p_sequence > 999 then
     raise exception 'Nomor tidak valid';
   end if;
+  p_queue_date := coalesce(p_queue_date, current_date);
 
   select * into v_service from public.services where id = p_service_id and is_active = true;
   if not found then
@@ -217,7 +232,7 @@ begin
 
   -- Nomor sudah terdaftar hari ini → panggil ulang
   select * into v_row from public.queues
-  where queue_date = current_date and service_id = p_service_id and number = v_full;
+  where queue_date = p_queue_date and service_id = p_service_id and number = v_full;
   if found then
     update public.queues
     set status = 'CALLED', called_at = coalesce(p_called_at, now()), updated_at = now()
@@ -232,17 +247,17 @@ begin
   );
   select count(*) into v_count
   from public.queues
-  where queue_date = current_date and service_id = p_service_id;
+  where queue_date = p_queue_date and service_id = p_service_id;
   if v_count >= v_quota then
     raise exception 'Kuota % hari ini sudah penuh (%)', v_service.name, v_quota;
   end if;
 
   -- Kunci per layanan per hari agar dua petugas tak membuat nomor sama
-  perform pg_advisory_xact_lock(hashtext(p_service_id::text || current_date::text));
+  perform pg_advisory_xact_lock(hashtext(p_service_id::text || p_queue_date::text));
 
   -- Cek ulang setelah lock (hindari balapan)
   select * into v_row from public.queues
-  where queue_date = current_date and service_id = p_service_id and number = v_full;
+  where queue_date = p_queue_date and service_id = p_service_id and number = v_full;
   if found then
     update public.queues
     set status = 'CALLED', called_at = coalesce(p_called_at, now()), updated_at = now()
@@ -251,13 +266,13 @@ begin
   end if;
 
   insert into public.queues (queue_date, service_id, service_name, prefix, sequence, number, name, status, called_at)
-  values (current_date, p_service_id, v_service.name, v_service.prefix, p_sequence, v_full, v_holder, 'CALLED', coalesce(p_called_at, now()))
+  values (p_queue_date, p_service_id, v_service.name, v_service.prefix, p_sequence, v_full, v_holder, 'CALLED', coalesce(p_called_at, now()))
   returning * into v_row;
   return v_row;
 exception when unique_violation then
   -- Balapan dengan petugas lain: nomor keburu dibuat → panggil yang sudah ada
   select * into v_row from public.queues
-  where queue_date = current_date and service_id = p_service_id and number = v_full;
+  where queue_date = p_queue_date and service_id = p_service_id and number = v_full;
   if found then
     update public.queues
     set status = 'CALLED', called_at = coalesce(p_called_at, now()), updated_at = now()
@@ -269,10 +284,10 @@ end;
 $$;
 
 -- RPC boleh dipanggil peran anon (ambil antrean publik) & authenticated (petugas)
-revoke all on function public.take_queue_number(uuid, text, text) from public;
-grant execute on function public.take_queue_number(uuid, text, text) to anon, authenticated;
-revoke all on function public.call_direct_number(uuid, int, text, timestamptz) from public;
-grant execute on function public.call_direct_number(uuid, int, text, timestamptz) to authenticated;
+revoke all on function public.take_queue_number(uuid, text, text, date) from public;
+grant execute on function public.take_queue_number(uuid, text, text, date) to anon, authenticated;
+revoke all on function public.call_direct_number(uuid, int, text, timestamptz, date) from public;
+grant execute on function public.call_direct_number(uuid, int, text, timestamptz, date) to authenticated;
 grant execute on function public.current_role() to anon, authenticated;
 
 -- ============================================================
@@ -322,10 +337,16 @@ drop policy if exists "public read display" on public.display_images;
 create policy "public read display" on public.display_images for select using (is_active = true);
 drop policy if exists "public read contents" on public.display_contents;
 create policy "public read contents" on public.display_contents for select using (true);
+-- Jendela ±1 hari, BUKAN = current_date: database UTC, browser WITA (+8).
+-- Pukul 00:00–08:00 WITA, "hari ini" versi browser = besok versi database;
+-- policy = current_date akan menyembunyikan baris yang baru ditulis aplikasi
+-- (dan menolak insert WAITING fallback). Aplikasi selalu menulis/membaca
+-- memakai tanggal lokal browser (todayKey()), jadi policy cukup memberi
+-- toleransi selisih zona waktu.
 drop policy if exists "public read today queues" on public.queues;
-create policy "public read today queues" on public.queues for select using (queue_date = current_date);
+create policy "public read today queues" on public.queues for select using (queue_date between current_date - 1 and current_date + 1);
 drop policy if exists "public insert queue" on public.queues;
-create policy "public insert queue" on public.queues for insert with check (queue_date = current_date and status = 'WAITING');
+create policy "public insert queue" on public.queues for insert with check (queue_date between current_date - 1 and current_date + 1 and status = 'WAITING');
 
 -- Petugas & Admin (login): kelola antrean
 drop policy if exists "staff manage queues" on public.queues;
