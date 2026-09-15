@@ -3,7 +3,7 @@ import { History, LayoutDashboard, Settings } from 'lucide-react'
 import { DashboardLayout } from '../../layouts/layouts.jsx'
 import { getHistory } from '../../services/queueService.js'
 import { Badge, Empty } from '../../components/ui/ui.jsx'
-import { formatTime, todayKey } from '../../utils/date.js'
+import { formatDateID, formatTime, todayKey } from '../../utils/date.js'
 
 const menu = [
   { to: '/petugas/queue', label: 'Panel Pelayanan', icon: <LayoutDashboard size={17} /> },
@@ -14,18 +14,29 @@ const menu = [
 export default function PetugasHistory() {
   const [rows, setRows] = useState([])
   const [filter, setFilter] = useState('')
+  const [date, setDate] = useState(todayKey())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getHistory({ date: todayKey() }).then(setRows).catch(() => {}).finally(() => setLoading(false))
-  }, [])
+    setLoading(true)
+    getHistory({ date }).then(setRows).catch(() => {}).finally(() => setLoading(false))
+  }, [date])
 
   const list = filter ? rows.filter((r) => r.status === filter) : rows
+  const isToday = date === todayKey()
 
   return (
-    <DashboardLayout menu={menu} title="Riwayat Pelayanan" subtitle="Seluruh antrean hari ini">
+    <DashboardLayout menu={menu} title="Riwayat Pelayanan" subtitle={isToday ? 'Seluruh antrean hari ini' : `Antrean tanggal ${formatDateID(date)}`}>
       <div className="card">
-        <div className="flex gap-2 p-3 border-b border-slate-100">
+        <div className="flex gap-2 p-3 border-b border-slate-100 flex-wrap">
+          <input
+            type="date"
+            className="input !w-auto"
+            value={date}
+            max={todayKey()}
+            onChange={(e) => { if (e.target.value) setDate(e.target.value) }}
+            title="Filter hari"
+          />
           <select className="input !w-auto" value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="">Semua status</option>
             <option value="WAITING">Menunggu</option>
