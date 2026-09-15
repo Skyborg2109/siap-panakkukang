@@ -239,12 +239,19 @@ export default function Display() {
         {/* Kiri: slideshow informasi */}
         <div className={`bg-[#0f1b33] text-white rounded-2xl flex flex-col min-h-0 overflow-hidden relative ${current?.kind === 'photo' ? '' : 'p-4 md:p-6'}`}>
           {current?.kind === 'photo' ? (
-            // Foto tunggal (alur): tanpa teks sama sekali, gambar full-cover seluruh panel
-            <div key={`body-${slide}`} className="animate-slide-in absolute inset-0">
+            // Foto tunggal (alur): tanpa teks sama sekali, gambar utuh tanpa crop —
+            // panel tetap terisi penuh via latar blur dari gambar yang sama
+            <div key={`body-${slide}`} className="animate-slide-in absolute inset-0 overflow-hidden">
+              <img
+                src={current.item.url || current.item.file_path}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full object-cover blur-2xl scale-110 opacity-60"
+              />
               <img
                 src={current.item.url || current.item.file_path}
                 alt={current.item.title || current.item.name}
-                className="h-full w-full object-cover"
+                className="absolute inset-0 h-full w-full object-contain"
               />
               <div className="absolute bottom-3 left-0 right-0 flex gap-1.5 justify-center">
                 {slides.map((_, i) => (
