@@ -509,7 +509,9 @@ export default function PetugasQueue() {
               />
             </Field>
           )}
-          <button type="submit" className="btn-primary w-full" disabled={busy === `direct-${specOpen?.id}`}><Search size={16} /> {busy === `direct-${specOpen?.id}` ? 'Memanggil…' : 'Panggil Sekarang'}</button>
+          {/* type=button + onClick (bukan andalkan submit form): event submit
+              pernah terbukti tidak sampai di browser lapangan, sementara klik biasa jalan. */}
+          <button type="button" onClick={handleDirect} className="btn-primary w-full" disabled={busy === `direct-${specOpen?.id}`}><Search size={16} /> {busy === `direct-${specOpen?.id}` ? 'Memanggil…' : 'Panggil Sekarang'}</button>
         </form>
       </Modal>
 
