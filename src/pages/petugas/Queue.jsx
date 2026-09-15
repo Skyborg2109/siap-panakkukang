@@ -156,9 +156,17 @@ export default function PetugasQueue() {
     return sel || list[0] || null
   }
 
+  // Pesan error jadi teks banner dalam aplikasi (bukan alert()) — browser
+  // TV/kios sering memblokir dialog alert sehingga kegagalan tampak "sunyi".
+  const errText = (e) => {
+    const m = e?.message || 'Operasi gagal.'
+    if (/timeout/i.test(m)) return 'Server tidak merespons dalam 20 detik. Periksa koneksi & status project Supabase, lalu coba lagi.'
+    return m
+  }
+
   const runOn = async (key, id, fn) => {
     setBusy(key)
-    try { await fn(); await refresh() } catch (e) { alert(e.message) }
+    try { await withTimeout(fn(), 20000); await refresh() } catch (e) { flash(errText(e), 'warn') }
     finally { setBusy(null) }
   }
 
@@ -172,26 +180,26 @@ export default function PetugasQueue() {
     if (!target) return
     setBusy(key)
     try {
-      await finishFn(target.id)
+      await withTimeout(finishFn(target.id), 20000)
       let next = null
       const nextSeq = Number(target.sequence)
       if (Number.isFinite(nextSeq)) {
         try {
-          next = await callDirect({ service: svc, number: `${svc.prefix}-${nextSeq + 1}`, name: '' })
+          next = await withTimeout(callDirect({ service: svc, number: `${svc.prefix}-${nextSeq + 1}`, name: '' }), 20000)
         } catch (e) {
           // Kuota habis → nomor aktif tetap diselesaikan, tanpa panggil berikutnya
           if (!/kuota/i.test(e.message || '')) throw e
           flash(`${target.number} ${verb}. Kuota ${svc.name} hari ini sudah penuh.`, 'warn')
         }
       } else {
-        next = await callNext({ serviceIds: [svc.id] })
+        next = await withTimeout(callNext({ serviceIds: [svc.id] }), 20000)
       }
       if (next) {
         setSelected((prev) => ({ ...prev, [svc.id]: next.id }))
         flash(`${target.number} ${verb}. Otomatis memanggil ${next.number} (${svc.name}).`)
       }
       await refresh()
-    } catch (e) { alert(e.message) }
+    } catch (e) { flash(errText(e), 'warn') }
     finally { setBusy(null) }
   }
 
@@ -202,17 +210,17 @@ export default function PetugasQueue() {
   const handleDirect = async (e) => {
     e.preventDefault()
     const svc = specOpen
-    if (!svc || !specificNum.trim()) return alert('Masukkan nomor antrean.')
+    if (!svc || !specificNum.trim()) return flash('Masukkan nomor antrean.', 'warn')
     const nameCall = isNameCallService(svc)
     if (nameCall) {
-      if (directName.trim().length < 3) return alert('Untuk Perekaman KTP, nama wajib diisi (minimal 3 huruf) — nama yang tampil di monitor & diumumkan.')
+      if (directName.trim().length < 3) return flash('Untuk Perekaman KTP, nama wajib diisi (minimal 3 huruf) — nama yang tampil di monitor & diumumkan.', 'warn')
       try {
-        if (parseQueueNumbers(svc, specificNum).length > 1) return alert('Perekaman KTP dipanggil satu nama per panggilan — masukkan satu nomor saja.')
-      } catch (err) { return alert(err.message) }
+        if (parseQueueNumbers(svc, specificNum).length > 1) return flash('Perekaman KTP dipanggil satu nama per panggilan — masukkan satu nomor saja.', 'warn')
+      } catch (err) { return flash(errText(err), 'warn') }
     }
     setBusy(`direct-${svc.id}`)
     try {
-      const res = await callDirectMany({ service: svc, raw: specificNum, name: directName })
+      const res = await withTimeout(callDirectMany({ service: svc, raw: specificNum, name: directName }), 20000)
       if (res.length > 1) {
         setSelected((prev) => ({ ...prev, [svc.id]: res[res.length - 1].id }))
         flash(`Memanggil ${res.length} nomor sekaligus: ${res.map((r) => r.number).join(', ')} (${svc.name}).`)
@@ -221,28 +229,28 @@ export default function PetugasQueue() {
       }
       setSpecOpen(null); setSpecificNum(''); setDirectName('')
       await refresh()
-    } catch (err) { alert(err.message) }
+    } catch (err) { flash(errText(err), 'warn') }
     finally { setBusy(null) }
   }
 
   const handleKK = async (e) => {
     e.preventDefault()
-    if (kkName.trim().length < 3) return alert('Nama minimal 3 huruf.')
+    if (kkName.trim().length < 3) return flash('Nama minimal 3 huruf.', 'warn')
     try {
-      await callKKCase({ name: kkName.trim(), note: kkNote.trim() })
+      await withTimeout(callKKCase({ name: kkName.trim(), note: kkNote.trim() }), 20000)
       setKkOpen(false); setKkName(''); setKkNote('')
-      alert('Panggilan KK dikirim ke Display TV + audio.')
-    } catch (err) { alert(err.message) }
+      flash('Panggilan KK dikirim ke Display TV + audio.')
+    } catch (err) { flash(errText(err), 'warn') }
   }
 
   // Pengumuman spontan ke masyarakat (banner + audio di Display TV)
   const handleBroadcast = async (e) => {
     e.preventDefault()
     try {
-      await sendBroadcast({ message: bcMessage })
+      await withTimeout(sendBroadcast({ message: bcMessage }), 20000)
       setBcOpen(false); setBcMessage('')
-      alert('Pengumuman dikirim ke Display TV + audio.')
-    } catch (err) { alert(err.message) }
+      flash('Pengumuman dikirim ke Display TV + audio.')
+    } catch (err) { flash(errText(err), 'warn') }
   }
 
   const openEdit = (q) => {
@@ -252,7 +260,7 @@ export default function PetugasQueue() {
 
   const handleEdit = async (e) => {
     e.preventDefault()
-    if (!editOpen || editName.trim().length < 3) return alert('Nama minimal 3 huruf.')
+    if (!editOpen || editName.trim().length < 3) return flash('Nama minimal 3 huruf.', 'warn')
     await runOn(`edit-${editOpen.id}`, editOpen.id, () => setStatus(editOpen.id, editOpen.status, { name: editName.trim() }))
     setEditOpen(null)
   }
@@ -260,7 +268,7 @@ export default function PetugasQueue() {
   const handleReset = async () => {
     if (!window.confirm('Reset antrean hari ini? Antrean yang masih aktif (menunggu/dipanggil/dilayani) akan ditandai Dilewati. Riwayat hari ini tetap tersimpan.')) return
     setBusy('reset')
-    try { await resetToday(); await refresh() } catch (e) { alert(e.message) }
+    try { await withTimeout(resetToday(), 20000); await refresh() } catch (e) { flash(errText(e), 'warn') }
     finally { setBusy(null) }
   }
 

@@ -17,6 +17,19 @@ const CATEGORY_META = {
 }
 const CATEGORY_ORDER = ['staff-dukcapil', 'staff-kecamatan', 'alur']
 
+// Penanda panggilan yang sudah diumumkan — localStorage (bukan memori /
+// sessionStorage) agar tidak diumumkan ulang saat window Display ditutup
+// lalu dibuka kembali dan suaranya diaktifkan.
+function loadLastKey(key) {
+  try { return localStorage.getItem(key) || '' } catch { return '' }
+}
+function saveLastKey(key, val) {
+  try { localStorage.setItem(key, val) } catch { /* abaikan */ }
+}
+const LS_LAST_CALL = 'siap_last_call'
+const LS_LAST_KK = 'siap_last_kk'
+const LS_LAST_BC = 'siap_last_bc'
+
 // Durasi tiap slide papan informasi (milis) — ubah satu angka ini bila ingin
 // perpindahan konten lebih cepat / lambat.
 const SLIDE_INTERVAL_MS = 15_000
@@ -30,19 +43,18 @@ export default function Display() {
   const [broadcast, setBroadcast] = useState(null)
   const [slide, setSlide] = useState(0)
   const [unlocked, setUnlocked] = useState(false)
-  const lastCalledRef = useRef('')
+  const lastCalledRef = useRef(loadLastKey(LS_LAST_CALL))
   const { enabled, supported, toggle, wake, announceQueue, announceQueues, announceKK, announceBroadcast } = useSpeech()
   const now = useClock()
 
   // Browser memblokir suara sebelum ada interaksi user: klik/sentuh/tekan tombol
-  // sekali di halaman Display untuk membuka suara, lalu panggilan saat itu dibunyikan.
+  // sekali di halaman Display untuk membuka suara. Panggilan BARU tetap
+  // dibunyikan setelah unlock; yang sudah pernah diumumkan tidak diulang
+  // (penanda tersimpan di localStorage).
   useEffect(() => {
     const unlock = () => {
       wake()
-      setUnlocked((prev) => {
-        if (!prev) lastCalledRef.current = ''
-        return true
-      })
+      setUnlocked(true)
     }
     window.addEventListener('pointerdown', unlock)
     window.addEventListener('keydown', unlock)
@@ -106,6 +118,7 @@ export default function Display() {
     const key = batch.map((q) => `${q.id}@${q.called_at}`).sort().join('|')
     if (key !== lastCalledRef.current) {
       lastCalledRef.current = key
+      saveLastKey(LS_LAST_CALL, key)
       if (companions.length) announceQueues(batch)
       else announceQueue(newest)
     }
@@ -116,8 +129,8 @@ export default function Display() {
     if (!kk) return
     const kkKey = `kk-${kk.id}`
     try {
-      if (sessionStorage.getItem('siap_last_kk') !== kkKey) {
-        sessionStorage.setItem('siap_last_kk', kkKey)
+      if (loadLastKey(LS_LAST_KK) !== kkKey) {
+        saveLastKey(LS_LAST_KK, kkKey)
         const t = setTimeout(() => announceKK(kk), 4000)
         return () => clearTimeout(t)
       }
@@ -132,8 +145,8 @@ export default function Display() {
     if (!broadcast) return
     const bcKey = `bc-${broadcast.id}`
     try {
-      if (sessionStorage.getItem('siap_last_bc') !== bcKey) {
-        sessionStorage.setItem('siap_last_bc', bcKey)
+      if (loadLastKey(LS_LAST_BC) !== bcKey) {
+        saveLastKey(LS_LAST_BC, bcKey)
         const t = setTimeout(() => announceBroadcast(broadcast), 4000)
         return () => clearTimeout(t)
       }
