@@ -21,7 +21,16 @@ export default function AdminServices() {
     await upsertService({ ...form, daily_quota: quota, prefix: form.prefix.toUpperCase().replace(/\s/g, '') })
     setOpen(false); setForm(blank); load()
   }
-  const del = async (id) => { if (confirm('Hapus layanan ini?')) { await deleteService(id); load() } }
+  const del = async (s) => {
+    if (!confirm(`Hapus layanan "${s.name}"?`)) return
+    try {
+      const res = await deleteService(s.id)
+      if (res?.deactivated) alert(`"${s.name}" punya riwayat antrean sehingga tidak bisa dihapus permanen — layanan dinonaktifkan (disembunyikan dari warga & petugas).`)
+      load()
+    } catch (e) {
+      alert(`Gagal menghapus: ${e.message || e}`)
+    }
+  }
 
   return (
     <AdminShell title="Kelola Layanan" subtitle="Tambah / ubah / nonaktifkan layanan Dukcapil tanpa ubah kode">
@@ -40,7 +49,7 @@ export default function AdminServices() {
                   <div className="text-xs text-slate-500">{s.description} · Kuota <b className="tabular-nums">{quotaFor(s)}</b>/hari</div>
                 </div>
                 <button onClick={() => { setForm(s); setOpen(true) }} className="btn-secondary !py-1.5 !text-xs">Ubah</button>
-                <button onClick={() => del(s.id)} className="btn-danger !py-1.5 !text-xs">Hapus</button>
+                <button onClick={() => del(s)} className="btn-danger !py-1.5 !text-xs">Hapus</button>
               </div>
             ))}
           </div>

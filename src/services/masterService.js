@@ -79,8 +79,16 @@ export async function upsertService(payload) {
 export async function deleteService(id) {
   if (isSupabaseConfigured) {
     const { error } = await supabase.from('services').delete().eq('id', id)
-    if (error) throw error
-    return true
+    if (!error) return { deleted: true }
+    // FK on delete restrict: layanan yang pernah punya antrean tidak bisa dihapus
+    // permanen agar riwayat/statistik tetap utuh — nonaktifkan saja (disembunyikan
+    // dari warga & petugas karena getServices hanya mengambil is_active = true).
+    if (error.code === '23503') {
+      const { error: updErr } = await supabase.from('services').update({ is_active: false }).eq('id', id)
+      if (updErr) throw updErr
+      return { deactivated: true }
+    }
+    throw error
   }
   lsSet('siap_services_v2', lsGet('siap_services_v2', SEED_SERVICES).filter((s) => s.id !== id))
   return true
