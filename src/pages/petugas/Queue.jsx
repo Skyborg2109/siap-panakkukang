@@ -440,9 +440,12 @@ export default function PetugasQueue() {
               const quota = quotaFor(svc)
               const issued = issuedOf(svc.id)
               const full = issued >= quota
-              // Nomor yang sudah dipanggil / dilewati (acuan petugas untuk panggil spesifik)
+              // Nomor yang masih aktif (acuan panggil ulang ronde berjalan) —
+              // hanya CALLED/SERVING agar reset (aktif→SKIPPED) mengosongkan
+              // bagian ini; COMPLETED/SKIPPED tetap ada di Riwayat dan tetap
+              // bisa dipanggil ulang manual via modal "Panggil Nomor".
               const handled = queues
-                .filter((q) => q.service_id === svc.id && q.status !== 'WAITING')
+                .filter((q) => q.service_id === svc.id && ['CALLED', 'SERVING'].includes(q.status))
                 .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
               return (
                 <div key={svc.id} className="card p-4">
@@ -470,9 +473,9 @@ export default function PetugasQueue() {
                         {handled.map((q) => (
                           <button
                             key={q.id}
-                            title={q.status === 'SKIPPED' ? `${q.number} (dilewati) — klik untuk panggil ulang` : `${q.number} — klik untuk panggil ulang`}
+                            title={`${q.number} — klik untuk panggil ulang`}
                             onClick={() => openSpec(svc, q.number)}
-                            className={`rounded-md border px-2 py-1 text-[11px] font-extrabold tabular-nums transition hover:ring-2 ${c.pill} ${c.ring} ${q.status === 'SKIPPED' ? 'line-through opacity-60' : ''}`}
+                            className={`rounded-md border px-2 py-1 text-[11px] font-extrabold tabular-nums transition hover:ring-2 ${c.pill} ${c.ring}`}
                           >
                             {q.number}
                           </button>
