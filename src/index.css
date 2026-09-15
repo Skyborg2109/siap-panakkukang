@@ -43,13 +43,15 @@ body {
   }
 }
 
-/* Display TV ticker animation */
+/* Display TV ticker animation — seamless loop: trek berisi 2 salinan identik,
+   bergerak 0 → -50% sehingga teks langsung terlihat saat refresh (tidak
+   mulai dari luar layar) dan tidak ada lompatan saat mengulang. */
 @keyframes ticker-scroll {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 .animate-ticker {
-  animation: ticker-scroll 60s linear infinite;
+  animation: ticker-scroll 120s linear infinite;
 }
 
 @keyframes blink-soft {

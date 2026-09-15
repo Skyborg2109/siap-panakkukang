@@ -198,6 +198,9 @@ export default function Display() {
   }, [services, queues])
 
   const ticker = announcements.map((a) => a.message).join('  •••  ') || 'Selamat datang di Kantor Kecamatan Panakkukang.'
+  // Diulang 4x agar satu paruh trek selalu lebih lebar dari layar (syarat loop mulus),
+  // dirender 2 salinan identik oleh footer di bawah.
+  const tickerLoop = Array(4).fill(ticker).join('  •••  ')
 
   const current = slides[slide % slides.length]
 
@@ -390,7 +393,10 @@ export default function Display() {
         <div className="flex items-center gap-4 px-4 py-4 overflow-hidden">
           <span className="shrink-0 rounded-lg bg-orange-500 px-4 py-2 text-sm md:text-base font-extrabold tracking-wider">PENGUMUMAN</span>
           <div className="overflow-hidden whitespace-nowrap flex-1">
-            <div className="inline-block animate-ticker text-lg md:text-2xl font-bold text-white">{ticker}</div>
+            <div className="flex w-max animate-ticker text-lg md:text-2xl font-bold text-white">
+              <span className="whitespace-nowrap pr-24">{tickerLoop}</span>
+              <span className="whitespace-nowrap pr-24" aria-hidden="true">{tickerLoop}</span>
+            </div>
           </div>
         </div>
         <div className="h-[3px] bg-orange-500" />

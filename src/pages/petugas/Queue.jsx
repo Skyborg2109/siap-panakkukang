@@ -174,8 +174,9 @@ export default function PetugasQueue() {
     finally { setBusy(null) }
   }
 
-  // Selesai / Berikutnya → langsung panggil nomor berikutnya (seq + 1)
-  // DARI JENIS YANG SAMA dengan kartu yang tombolnya ditekan.
+  // Selesai / Berikutnya → langsung panggil nomor berikutnya
+  // (tertinggi dari batch aktif + 1) DARI JENIS YANG SAMA dengan kartu
+  // yang tombolnya ditekan.
   // Kupon fisik: nomor berikut dibuatkan otomatis bila belum terdaftar
   // (callDirect), atau dipanggil ulang bila sudah ada.
   // Selesai = nomor aktif COMPLETED; Berikutnya = nomor aktif SKIPPED (dilewati).
@@ -186,10 +187,16 @@ export default function PetugasQueue() {
     try {
       await withTimeout(finishFn(target.id), 20000)
       let next = null
-      const nextSeq = Number(target.sequence)
-      if (Number.isFinite(nextSeq)) {
+      // Nomor berikut = sequence TERTINGGI dari seluruh nomor aktif batch ini + 1,
+      // bukan +1 dari target saja — batch serentak bisa berisi mis. IKD-2,3,4 + IKD-1
+      // dan harus maju ke IKD-5 apa pun chip yang sedang dipilih.
+      const batchSeqs = (activeByService[svc.id] || [])
+        .map((q) => Number(q.sequence))
+        .filter((n) => Number.isFinite(n))
+      const baseSeq = batchSeqs.length ? Math.max(...batchSeqs) : Number(target.sequence)
+      if (Number.isFinite(baseSeq)) {
         try {
-          next = await withTimeout(callDirect({ service: svc, number: `${svc.prefix}-${nextSeq + 1}`, name: '' }), 20000)
+          next = await withTimeout(callDirect({ service: svc, number: `${svc.prefix}-${baseSeq + 1}`, name: '' }), 20000)
         } catch (e) {
           // Kuota habis → nomor aktif tetap diselesaikan, tanpa panggil berikutnya
           if (!/kuota/i.test(e.message || '')) throw e
