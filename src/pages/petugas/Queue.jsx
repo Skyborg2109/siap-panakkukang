@@ -291,6 +291,12 @@ export default function PetugasQueue() {
             <span className="w-1 h-5 rounded-full bg-orange-500" />
             <h2 className="font-bold text-slate-900">Antrean Sedang Dilayani</h2>
           </div>
+          {!loading && !loadError && visibleServices.length > 0 && Object.values(activeByService).every((a) => a.length === 0) && (
+            <div className="card p-3 mb-4 text-sm text-slate-600 bg-blue-50/60 border border-blue-100">
+              Belum ada nomor yang dipanggil — tombol <b>Ulangi / Selesai / Berikutnya</b> aktif setelah ada nomor aktif.
+              Untuk memanggil, gunakan tombol <b>Panggil Nomor</b> di panel kanan.
+            </div>
+          )}
           {loading ? (
             <div className="card p-10 text-center text-slate-400">Memuat…</div>
           ) : loadError ? (
@@ -362,23 +368,23 @@ export default function PetugasQueue() {
                       <button
                         disabled={!target || busy === `recall-${svc.id}`}
                         onClick={() => target && runOn(`recall-${svc.id}`, target.id, () => recallQueue(target.id))}
-                        className="btn-secondary !px-2 !py-2 !text-xs !rounded-lg"
+                        className="btn-secondary !px-2 !py-2 !text-xs !rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Volume2 size={14} /> Ulangi
                       </button>
                       <button
                         disabled={!target || busy === `done-${svc.id}`}
-                        onClick={() => finishAndCallNext(svc, `done-${svc.id}`, completeQueue, 'selesai')}
+                        onClick={() => target && finishAndCallNext(svc, `done-${svc.id}`, completeQueue, 'selesai')}
                         title="Tandai nomor aktif selesai & panggil nomor berikutnya"
-                        className="btn-success !px-2 !py-2 !text-xs !rounded-lg"
+                        className="btn-success !px-2 !py-2 !text-xs !rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Check size={14} /> Selesai
                       </button>
                       <button
                         disabled={!target || busy === `skip-${svc.id}`}
-                        onClick={() => finishAndCallNext(svc, `skip-${svc.id}`, skipQueue, 'dilewati')}
+                        onClick={() => target && finishAndCallNext(svc, `skip-${svc.id}`, skipQueue, 'dilewati')}
                         title="Lewati nomor aktif & panggil nomor berikutnya"
-                        className="btn-secondary !px-2 !py-2 !text-xs !rounded-lg"
+                        className="btn-secondary !px-2 !py-2 !text-xs !rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <ChevronsRight size={14} /> Berikutnya
                       </button>

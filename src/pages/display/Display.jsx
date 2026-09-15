@@ -358,7 +358,7 @@ export default function Display() {
                 </div>
               ) : (
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-center">
-                  <div className="font-extrabold text-[clamp(1.5rem,4.5vh,2.25rem)] lg:text-[24cqh] leading-none text-slate-300 tracking-tight truncate">Menunggu</div>
+                  <div className="font-extrabold text-[clamp(1.25rem,6vw,2rem)] lg:text-[13cqw] leading-tight text-slate-300 tracking-tight break-words">Menunggu</div>
                 </div>
               )}
               {called && (
@@ -375,7 +375,7 @@ export default function Display() {
       {(!supported || !unlocked || !enabled) && (
         <div className="mx-3 md:mx-4 mb-1 shrink-0">
           <button
-            onClick={() => { wake(); if (supported && enabled) { lastCalledRef.current = ''; setUnlocked(true) } else toggle() }}
+            onClick={() => { wake(); if (supported && enabled) setUnlocked(true); else toggle() }}
             className={`w-full rounded-xl px-4 py-2.5 text-sm font-bold flex items-center justify-center gap-2 no-print ${!supported ? 'bg-rose-500 text-white' : 'bg-amber-400 text-amber-950 hover:bg-amber-300'}`}
           >
             {!supported
