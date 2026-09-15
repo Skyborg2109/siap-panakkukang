@@ -298,41 +298,44 @@ export default function Display() {
           )}
         </div>
 
-        {/* Kanan: kartu panggilan per jenis antrean */}
-        <div className="grid gap-3 content-start lg:content-stretch lg:auto-rows-fr lg:h-full min-h-0 overflow-hidden">
+        {/* Kanan: kartu panggilan per jenis antrean.
+            Di layar TV (lg) tiap kartu jadi container query: font diskala proporsional
+            terhadap tinggi kartu (cqh) agar tak saling tumpuk walau layanannya banyak
+            dan viewport pendek. Di layar kecil pakai ukuran fixed biasa. */}
+        <div className="grid gap-2 lg:gap-3 content-start lg:content-stretch lg:auto-rows-fr lg:h-full min-h-0 overflow-hidden">
           {perService.length === 0 && <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400">Belum ada jenis antrean aktif.</div>}
           {perService.map(({ service, called, companions }) => (
-            <div key={service.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm px-6 py-4 text-center flex flex-col min-h-0 h-full overflow-hidden">
-              <div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 border border-orange-200 px-3 py-1.5 text-xs font-bold tracking-wider text-orange-700 uppercase leading-none">
+            <div key={service.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm px-4 py-2.5 lg:px-[3cqw] lg:py-[2cqh] text-center flex flex-col min-h-0 h-full overflow-hidden lg:[container-type:size]">
+              <div className="shrink-0">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 border border-orange-200 px-3 py-1.5 lg:px-[2.5cqw] lg:py-[1.2cqh] text-xs lg:text-[8.5cqh] font-bold tracking-wider text-orange-700 uppercase leading-none whitespace-nowrap max-w-full overflow-hidden">
                   <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
-                  {service.name}
+                  <span className="truncate">{service.name}</span>
                 </span>
               </div>
               {called ? (
-                <div className="flex-1 min-h-0 flex flex-col justify-center">
-                  <div className="font-extrabold text-[clamp(2rem,6.5vh,3.5rem)] leading-tight tracking-tight text-slate-900 tabular-nums mt-2">{called.number}</div>
+                <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-center">
+                  <div className="font-extrabold text-[clamp(1.75rem,6vh,3rem)] lg:text-[30cqh] leading-none tracking-tight text-slate-900 tabular-nums truncate">{called.number}</div>
                   {hasRealName(called.name) && (
-                    <div className="text-sm text-slate-500 mt-1.5 truncate">a.n. <b className="text-slate-700">{String(called.name).trim()}</b></div>
+                    <div className="text-sm lg:text-[8.5cqh] text-slate-500 mt-1 lg:mt-[0.8cqh] truncate">a.n. <b className="text-slate-700">{String(called.name).trim()}</b></div>
                   )}
                   {companions.length > 0 && (
-                    <div className="mt-2">
-                      <div className="text-[10px] font-bold tracking-[0.14em] text-slate-400">JUGA DIPANGGIL</div>
+                    <div className="mt-1.5 lg:mt-[1cqh] min-h-0 overflow-hidden">
+                      <div className="text-[10px] lg:text-[7cqh] font-bold tracking-[0.14em] text-slate-400">JUGA DIPANGGIL</div>
                       <div className="flex justify-center gap-1.5 mt-1 flex-wrap">
                         {companions.map((c) => (
-                          <span key={c.id} className="rounded-md bg-orange-50 border border-orange-200 px-2 py-0.5 text-xs font-extrabold tabular-nums text-orange-700">{c.number}</span>
+                          <span key={c.id} className="rounded-md bg-orange-50 border border-orange-200 px-2 py-0.5 text-xs lg:text-[8cqh] font-extrabold tabular-nums text-orange-700">{c.number}</span>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="flex-1 min-h-0 flex flex-col justify-center">
-                  <div className="font-extrabold text-[clamp(1.6rem,5vh,2.5rem)] leading-8 text-slate-300 mt-2 tracking-tight">Menunggu</div>
+                <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-center">
+                  <div className="font-extrabold text-[clamp(1.5rem,4.5vh,2.25rem)] lg:text-[24cqh] leading-none text-slate-300 tracking-tight truncate">Menunggu</div>
                 </div>
               )}
               {called && (
-                <div className="border-t border-slate-100 mt-3 pt-2.5 text-sm tabular-nums">
+                <div className="shrink-0 border-t border-slate-100 mt-2 lg:mt-[1cqh] pt-2 lg:pt-[1cqh] text-sm lg:text-[8.5cqh] tabular-nums leading-snug">
                   <span className="font-semibold text-orange-700">{isLoketService(service) ? 'Silakan maju ke depan loket pelayanan' : 'Sedang Dilayani di Ruang Pelayanan'}</span>
                 </div>
               )}
