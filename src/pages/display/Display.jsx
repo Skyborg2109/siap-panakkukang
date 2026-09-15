@@ -15,7 +15,8 @@ const CATEGORY_META = {
   'staff-kecamatan': 'Pimpinan Kecamatan Panakkukang',
   'alur': 'Alur Pelayanan',
 }
-const CATEGORY_ORDER = ['staff-dukcapil', 'staff-kecamatan', 'alur']
+// Urutan slide: pimpinan kecamatan dulu, lalu petugas dukcapil, lalu alur (permintaan operasional).
+const CATEGORY_ORDER = ['staff-kecamatan', 'staff-dukcapil', 'alur']
 
 // Penanda panggilan yang sudah diumumkan — localStorage (bukan memori /
 // sessionStorage) agar tidak diumumkan ulang saat window Display ditutup

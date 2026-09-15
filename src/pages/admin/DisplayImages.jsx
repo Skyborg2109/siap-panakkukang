@@ -5,14 +5,14 @@ import { isSupabaseConfigured } from '../../lib/supabase.js'
 import { Field, Empty } from '../../components/ui/ui.jsx'
 
 const CATS = [
-  { id: 'staff-dukcapil', label: 'Foto Petugas Dukcapil' },
   { id: 'staff-kecamatan', label: 'Foto Pimpinan Kecamatan' },
+  { id: 'staff-dukcapil', label: 'Foto Petugas Dukcapil' },
   { id: 'alur', label: 'Alur Pelayanan' },
 ]
 
 export default function AdminDisplay() {
   const [rows, setRows] = useState([])
-  const [form, setForm] = useState({ category: 'staff-dukcapil', name: '', title: '', description: '' })
+  const [form, setForm] = useState({ category: 'staff-kecamatan', name: '', title: '', description: '' })
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState('')
   const [fileKey, setFileKey] = useState(0)
@@ -43,7 +43,7 @@ export default function AdminDisplay() {
 
   const resetForm = () => {
     setPreview(''); setFile(null)
-    setForm({ category: 'staff-dukcapil', name: '', title: '', description: '' })
+    setForm({ category: 'staff-kecamatan', name: '', title: '', description: '' })
     setFileKey((k) => k + 1)
   }
 
@@ -60,7 +60,7 @@ export default function AdminDisplay() {
   }
 
   return (
-    <AdminShell title="Gambar Display TV" subtitle="Slideshow kiri display: foto petugas, pimpinan & alur (Supabase Storage / demo lokal)">
+      <AdminShell title="Gambar Display TV" subtitle="Slideshow kiri display: foto pimpinan, petugas & alur (Supabase Storage / demo lokal)">
       <div className="grid lg:grid-cols-3 gap-4">
         <form onSubmit={save} className="card p-5 h-fit space-y-3">
           <div className="text-sm font-bold">Upload Baru</div>
