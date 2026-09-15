@@ -2,7 +2,7 @@
 
 React 19 + Vite + React Router 7 + Tailwind 3 + Zustand + Supabase. Queue-calling + display TV for Kecamatan Panakkukang. Roles are only `ADMIN`/`PETUGAS` — no loket concept in auth, no `WARGA` role.
 
-> `README.md` / `prd.md` are stale — trust code + this file. Outdated claims: 3 services (now 5), "no ticket-taking by warga" (now `/ambil-antrean`), login-free `/display` (now requires login), Vercel deploy (now GitHub Pages), Supabase Realtime + Replication setup (now polling), `PREFIX-001` zero-padded numbers (now `PREFIX-N`, no padding).
+> `README.md` / `prd.md` are stale — trust code + this file. Outdated claims: 3 services (now 5), Vercel deploy (now GitHub Pages), Supabase Realtime + Replication setup (now polling), `PREFIX-001` zero-padded numbers (now `PREFIX-N`, no padding). Public warga pages (`/ambil-antrean`, `/information`, `/ikd`) were deleted — no warga UI remains.
 
 ## Commands
 
@@ -19,25 +19,24 @@ React 19 + Vite + React Router 7 + Tailwind 3 + Zustand + Supabase. Queue-callin
 
 ## Routes / auth
 
-- `src/routes/AppRoutes.jsx`: `/` → `/ambil-antrean` (public ticket page is the landing). `public/` pages use `pub()` layout; `Login.jsx` has its own chrome (don't wrap it). Admin pages wrap in `AdminShell` → `DashboardLayout` (`layouts.jsx`).
-- `/display` is `RequireAuth(PETUGAS/ADMIN)` — TV logs in once as petugas. `PublicLayout` (warga) must **never** link to `/display`; staff `DashboardLayout` links to it only via sidebar quickLinks ("Monitor Antrean", `external`, opens in new tab) — no header pill — that's intentional. Internal new-tab links must use `<Link to="/display">`, never `<a href="/display">` (`layouts.jsx` `DashboardNavItem`), or the Pages `basename` is bypassed and it 404s.
+- `src/routes/AppRoutes.jsx`: `/` → `/login` (no public landing). `Login.jsx` has its own chrome (don't wrap it). Admin pages wrap in `AdminShell` → `DashboardLayout` (`layouts.jsx`). No `PublicLayout` — staff-only app (petugas/admin + `/display` TV).
+- `/display` is `RequireAuth(PETUGAS/ADMIN)` — TV logs in once as petugas. It is linked only via the sidebar quickLinks ("Monitor Antrean", `external`, opens in new tab) — no header pill — that's intentional. Internal new-tab links must use `<Link to="/display">`, never `<a href="/display">` (`layouts.jsx` `DashboardNavItem`), or the Pages `basename` is bypassed and it 404s.
 - Auth: Zustand `authStore.js` from `siap_session`; demo `admin@panakkukang.go.id`/`admin123`, `petugas1@panakkukang.go.id`/`petugas123`. `counter_id`/`counter_name` are nulled compat fields (columns still in schema) — don't scope by them. Prod `createUser` only inserts a `profiles` row — the Supabase Auth user must already exist (created via dashboard); there is no self-signup flow.
 - Sidebar `NavLink` needs `end` (`DashboardNavItem`) or `/admin` stays highlighted on all `/admin/*`.
 
 ## Queues
 
 - Numbers are `PREFIX-N` without leading zeros via `makeQueueNumber` (`utils/date.js`); day key via `todayKey()`. 5 services in `constants.js` `SEED_SERVICES` (KTP, REKAM, IKD, KKO = KK Online Lontara+, KKB = KK Biasa). Statuses `WAITING → CALLED → SERVING → COMPLETED` + `SKIPPED`.
-- Prod **must** use RPCs: `take_queue_number` (transactional, per-service `daily_quota`, granted to `anon` so warga can self-serve) and `call_direct_number` (SECURITY DEFINER, granted to `authenticated` only — staff action; the `public insert queue` RLS policy only allows `WAITING` rows, so a direct `CALLED` insert is rejected — fallback to direct insert only on missing function, code `42883`). `nextSequenceForService` MAX+1 is demo-only.
+- Prod **must** use RPCs: `take_queue_number` (transactional, per-service `daily_quota`, granted to `anon`) and `call_direct_number` (SECURITY DEFINER, granted to `authenticated` only — staff action; the `public insert queue` RLS policy only allows `WAITING` rows, so a direct `CALLED` insert is rejected — fallback to direct insert only on missing function, code `42883`). `nextSequenceForService` MAX+1 is demo-only. Note: no UI calls `takeQueue` anymore (warga pages deleted) — new queues enter only via petugas coupon flow (`callDirect`/`callDirectMany`).
 - Physical-coupon workflow is free-order: `callDirect` creates the exact coupon number if missing, else recalls; gaps/skips allowed, no sequential guard. `callDirectMany` parses `5,6,7` / `5-8` via `parseQueueNumbers` (max `MAX_BATCH_CALL = 10`, sorted ascending) with one shared `called_at` — Display groups same-`called_at` CALLED rows as companions (chips + combined TTS `announceQueues`). Quota via `quotaFor()` (defaults KTP/REKAM 50, IKD 100, overridable per service).
 - Call destination: `isLoketService()`/`callDestination()` in `constants.js` (pattern-based so admin prefix variants like `KKONLINE` still resolve). Use them for new call text instead of hardcoding.
 - Services can't be hard-deleted once they have queue rows (`queues.service_id on delete restrict` in `schema.sql`): the Hapus button checks `getServiceQueueInfo()` first (History UI only shows today, but the FK counts **all** dates) and confirms permanent delete including history (`deleteServiceWithHistory`); `deleteService` still falls back to `is_active=false` on FK error `23503` — don't "fix" by force-deleting, history/statistics depend on it.
 - Don't confuse the three announcement channels: `announcements` = bottom ticker; `kk_announcements` (`callKKCase`/`getLatestKK`, BR-09, no number) and `broadcasts` (`sendBroadcast`/`getLatestBroadcast`, spontaneous) = ~20-sec banner + audio each.
 
-## Warga ticket page / TTS / display
+## TTS / display
 
-- `public/TakeQueue.jsx` at `/ambil-antrean`: no login (anon `take_queue_number` RPC + `public insert queue` RLS allow it). Multi-select takes one number per checked service; tickets persist per-day in `siap_my_tickets` (karcis view, live status poll 3s). On CALLED/SERVING it vibrates + shows orange banner + sets `document.title` — user must keep page open. No print button, no monitor links on warga UI.
 - TTS `useSpeech()` (`hooks.js`): `id-ID`, toggle in `siap_tts`, opening sound → announcement 2x → closing sound. Audio filenames contain a space (`opening sound.mp3`) — don't rename without updating `hooks.js`. Display TTS stays silent until first user gesture (browser autoplay policy).
 - Display slideshow (`Display.jsx`): one slide per image category (`CATEGORY_ORDER`/`CATEGORY_META` heading); staff photos of a category render together in a row, `alur` one image per slide, uncategorized images grouped into a "Dokumentasi" slide. Text lives only in the ticker — the single `info` slide is just the empty-state fallback when no images exist.
 - Admin upload must pass the real `File` to `uploadDisplayImage` (Storage upload in prod); base64-only silently takes the demo branch. `getAllDisplayImages` maps `url` via `imageUrl()` — don't return raw `file_path`.
-- Multiline admin content (IKD/Information) may contain literal `\n` — render with `.replace(/\\n/g, '\n')` + `whitespace-pre-line` (as `IKD.jsx`/`Information.jsx` do).
+- Multiline admin content (IKD/Information) may contain literal `\n` — render with `.replace(/\\n/g, '\n')` + `whitespace-pre-line` (as `admin/Information.jsx` does).
 - UI: `GovLogos` from `layouts.jsx`; theme navy `#0b1220` + `orange-600`; reuse `btn-primary`/`card`/`input`/`badge` from `index.css`.

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { MonitorPlay, Info, Fingerprint, LogIn, LogOut, ExternalLink, Menu, X, Ticket } from 'lucide-react'
+import { MonitorPlay, LogOut, ExternalLink, Menu, X } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore.js'
 import { logout } from '../services/authService.js'
-import { isSupabaseConfigured } from '../lib/supabase.js'
 
 // export const LOGO_MAKASSAR = '/logo-kota-makassar.png'
 // export const LOGO_KECAMATAN = '/logo-kecamatan-panakkukang.png'
@@ -93,65 +92,6 @@ function UserCard() {
       <button onClick={handleLogout} title="Keluar" className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10">
         <LogOut size={15} />
       </button>
-    </div>
-  )
-}
-
-// ---------- Publik (masyarakat + login) ----------
-export default function PublicLayout({ children }) {
-  const { user, setUser } = useAuthStore()
-  const navigate = useNavigate()
-
-  const handleLogout = async () => {
-    await logout()
-    setUser(null)
-    navigate('/')
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col bg-[#eef2f7]">
-      <header className="bg-white no-print">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-          <GovLogos />
-          <div className="flex-1 leading-tight">
-            <div className="text-[11px] font-bold tracking-wider text-orange-600">PEMERINTAH KOTA MAKASSAR</div>
-            <div className="font-extrabold text-slate-900">Kantor Kecamatan Panakkukang</div>
-          </div>
-          {!isSupabaseConfigured && (
-            <span className="hidden sm:inline-flex badge bg-amber-100 text-amber-800 border border-amber-200">Mode Demo</span>
-          )}
-        </div>
-        <div className="h-[3px] bg-orange-500" />
-        <div className="max-w-6xl mx-auto px-4 py-2 hidden md:flex items-center gap-1 text-sm font-medium text-slate-600">
-          <Link to="/ambil-antrean" className="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 font-bold hover:bg-orange-100">Ambil Antrean</Link>
-          <Link to="/information" className="px-3 py-1.5 rounded-lg hover:bg-slate-100">Informasi</Link>
-          <Link to="/ikd" className="px-3 py-1.5 rounded-lg hover:bg-slate-100">IKD</Link>
-          <div className="flex-1" />
-          {user ? (
-            <>
-              <Link to={user.role === 'ADMIN' ? '/admin' : '/petugas'} className="px-3 py-1.5 rounded-lg hover:bg-slate-100">Dashboard</Link>
-              <button onClick={handleLogout} className="px-3 py-1.5 rounded-lg hover:bg-slate-100">Keluar</button>
-            </>
-          ) : (
-            <Link to="/login" className="px-3 py-1.5 rounded-lg hover:bg-slate-100">Login Petugas</Link>
-          )}
-        </div>
-        <div className="md:hidden border-t border-slate-100 px-4 py-2 flex gap-2 overflow-x-auto text-sm text-slate-600">
-          <Link to="/ambil-antrean" className="flex items-center gap-1 px-2 py-1.5 font-bold text-orange-700"><Ticket size={15} /> Antrean</Link>
-          <Link to="/information" className="flex items-center gap-1 px-2 py-1.5"><Info size={15} /> Info</Link>
-          <Link to="/ikd" className="flex items-center gap-1 px-2 py-1.5"><Fingerprint size={15} /> IKD</Link>
-          <Link to="/login" className="flex items-center gap-1 px-2 py-1.5"><LogIn size={15} /> Login</Link>
-        </div>
-      </header>
-
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-6">{children}</main>
-
-      <footer className="bg-white border-t border-slate-200 text-xs text-slate-500 no-print">
-        <div className="max-w-6xl mx-auto px-4 py-3.5 flex flex-col sm:flex-row gap-1 sm:items-center justify-between">
-          <div>© 2026 Kantor Kecamatan Panakkukang, Kota Makassar.</div>
-          <div>Jl. Batu Raya No. 1, Panakkukang, Makassar, Sulawesi Selatan</div>
-        </div>
-      </footer>
     </div>
   )
 }
