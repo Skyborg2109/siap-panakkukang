@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { DashboardLayout } from '../../layouts/layouts.jsx'
 import {
-  getTodayQueueList, recallQueue, skipQueue,
+  getTodayQueueList, skipQueue,
   completeQueue, setStatus, resetToday, callDirect, callDirectMany, callNext,
   parseQueueNumbers,
 } from '../../services/queueService.js'
@@ -174,6 +174,18 @@ export default function PetugasQueue() {
     finally { setBusy(null) }
   }
 
+  // Ulangi: batch serentak dipanggil ulang SEMUA sekaligus dengan satu
+  // called_at bersama agar Display tetap mengelompokkannya (chip tak bisa
+  // dipilih satuan, jadi tidak ada "recall satu nomor" di mode batch).
+  const recallTarget = async (svc) => {
+    const actives = activeByService[svc.id] || []
+    const target = targetOf(svc.id)
+    if (!target) return
+    const now = new Date().toISOString()
+    const list = actives.length > 1 ? actives : [target]
+    await runOn(`recall-${svc.id}`, target.id, () => Promise.all(list.map((q) => setStatus(q.id, 'CALLED', { called_at: now }))))
+  }
+
   // Selesai / Berikutnya → langsung panggil nomor berikutnya
   // (tertinggi dari batch aktif + 1) DARI JENIS YANG SAMA dengan kartu
   // yang tombolnya ditekan.
@@ -181,33 +193,38 @@ export default function PetugasQueue() {
   // (callDirect), atau dipanggil ulang bila sudah ada.
   // Selesai = nomor aktif COMPLETED; Berikutnya = nomor aktif SKIPPED (dilewati).
   const finishAndCallNext = async (svc, key, finishFn, verb) => {
+    const actives = activeByService[svc.id] || []
     const target = targetOf(svc.id)
     if (!target) return
     setBusy(key)
     try {
-      await withTimeout(finishFn(target.id), 20000)
-      let next = null
-      // Nomor berikut = sequence TERTINGGI dari seluruh nomor aktif batch ini + 1,
-      // bukan +1 dari target saja — batch serentak bisa berisi mis. IKD-2,3,4 + IKD-1
-      // dan harus maju ke IKD-5 apa pun chip yang sedang dipilih.
-      const batchSeqs = (activeByService[svc.id] || [])
+      // Batch serentak (>1 nomor aktif): chip tidak bisa dipilih satuan, jadi
+      // Selesai/Berikutnya menghabiskan SEMUA nomor aktif sekaligus, lalu
+      // fokus pindah ke nomor berikutnya.
+      const multi = actives.length > 1
+      const done = multi ? actives : [target]
+      // Nomor berikut = sequence TERTINGGI dari batch yang dihabiskan + 1.
+      const batchSeqs = done
         .map((q) => Number(q.sequence))
         .filter((n) => Number.isFinite(n))
       const baseSeq = batchSeqs.length ? Math.max(...batchSeqs) : Number(target.sequence)
+      const doneLabel = multi ? `${done.length} nomor (${done.map((q) => q.number).join(', ')})` : target.number
+      await withTimeout(Promise.all(done.map((q) => finishFn(q.id))), 20000)
+      let next = null
       if (Number.isFinite(baseSeq)) {
         try {
           next = await withTimeout(callDirect({ service: svc, number: `${svc.prefix}-${baseSeq + 1}`, name: '' }), 20000)
         } catch (e) {
           // Kuota habis → nomor aktif tetap diselesaikan, tanpa panggil berikutnya
           if (!/kuota/i.test(e.message || '')) throw e
-          flash(`${target.number} ${verb}. Kuota ${svc.name} hari ini sudah penuh.`, 'warn')
+          flash(`${doneLabel} ${verb}. Kuota ${svc.name} hari ini sudah penuh.`, 'warn')
         }
       } else {
         next = await withTimeout(callNext({ serviceIds: [svc.id] }), 20000)
       }
       if (next) {
         setSelected((prev) => ({ ...prev, [svc.id]: next.id }))
-        flash(`${target.number} ${verb}. Otomatis memanggil ${next.number} (${svc.name}).`)
+        flash(`${doneLabel} ${verb}. Otomatis memanggil ${next.number} (${svc.name}).`)
       }
       await refresh()
     } catch (e) { flash(errText(e), 'warn') }
@@ -354,14 +371,15 @@ export default function PetugasQueue() {
                           <div className="text-[10px] font-bold tracking-[0.14em] text-slate-400">{actives.length} NOMOR</div>
                           <div className="flex justify-center gap-1.5 mt-2 flex-wrap">
                             {actives.slice(0, 10).map((q) => (
-                              <button
+                              // Chip batch: tampilan saja, tidak bisa dipilih satuan —
+                              // Selesai/Berikutnya/Ulangi selalu berlaku untuk semuanya.
+                              <span
                                 key={q.id}
-                                onClick={() => setSelected((prev) => ({ ...prev, [svc.id]: q.id }))}
                                 title={`a.n. ${q.name}`}
-                                className={`rounded-lg border px-2.5 py-1.5 text-[13px] font-extrabold tabular-nums transition ${c.pill} ${target.id === q.id ? `ring-2 ${c.ring}` : ''}`}
+                                className={`rounded-lg border px-2.5 py-1.5 text-[13px] font-extrabold tabular-nums ${c.pill}`}
                               >
                                 {q.number}
-                              </button>
+                              </span>
                             ))}
                           </div>
                         </>
@@ -381,7 +399,7 @@ export default function PetugasQueue() {
                     <div className="grid grid-cols-3 gap-2 px-3 pb-3">
                       <button
                         disabled={!target || busy === `recall-${svc.id}`}
-                        onClick={() => target && runOn(`recall-${svc.id}`, target.id, () => recallQueue(target.id))}
+                        onClick={() => recallTarget(svc)}
                         className="btn-secondary !px-2 !py-2 !text-xs !rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Volume2 size={14} /> Ulangi
