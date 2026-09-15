@@ -90,6 +90,10 @@ export default function PetugasQueue() {
   const [specOpen, setSpecOpen] = useState(null)
   const [specificNum, setSpecificNum] = useState('')
   const [directName, setDirectName] = useState('')
+  // Error submit "Panggil Nomor" wajib tampil DI DALAM modal — banner flash()
+  // di atas halaman tertutup overlay modal sehingga kegagalan tampak "sunyi".
+  const [specErr, setSpecErr] = useState(null)
+  const openSpec = (svc, num = '') => { setSpecOpen(svc); setSpecificNum(num); setDirectName(''); setSpecErr(null) }
   const [editOpen, setEditOpen] = useState(null)
   const [editName, setEditName] = useState('')
   const [notice, setNotice] = useState(null)
@@ -210,14 +214,17 @@ export default function PetugasQueue() {
   const handleDirect = async (e) => {
     e.preventDefault()
     const svc = specOpen
-    if (!svc || !specificNum.trim()) return flash('Masukkan nomor antrean.', 'warn')
+    // specFail: tampilkan di dalam modal (selalu terlihat) + banner global
+    const specFail = (msg) => { setSpecErr(msg); flash(msg, 'warn') }
+    if (!svc || !specificNum.trim()) return specFail('Masukkan nomor antrean.')
     const nameCall = isNameCallService(svc)
     if (nameCall) {
-      if (directName.trim().length < 3) return flash('Untuk Perekaman KTP, nama wajib diisi (minimal 3 huruf) — nama yang tampil di monitor & diumumkan.', 'warn')
+      if (directName.trim().length < 3) return specFail('Untuk Perekaman KTP, nama wajib diisi (minimal 3 huruf) — nama yang tampil di monitor & diumumkan.')
       try {
-        if (parseQueueNumbers(svc, specificNum).length > 1) return flash('Perekaman KTP dipanggil satu nama per panggilan — masukkan satu nomor saja.', 'warn')
-      } catch (err) { return flash(errText(err), 'warn') }
+        if (parseQueueNumbers(svc, specificNum).length > 1) return specFail('Perekaman KTP dipanggil satu nama per panggilan — masukkan satu nomor saja.')
+      } catch (err) { return specFail(errText(err)) }
     }
+    setSpecErr(null)
     setBusy(`direct-${svc.id}`)
     try {
       const res = await withTimeout(callDirectMany({ service: svc, raw: specificNum, name: directName }), 20000)
@@ -227,9 +234,9 @@ export default function PetugasQueue() {
       } else if (res.length === 1) {
         setSelected((prev) => ({ ...prev, [svc.id]: res[0].id }))
       }
-      setSpecOpen(null); setSpecificNum(''); setDirectName('')
+      setSpecOpen(null); setSpecificNum(''); setDirectName(''); setSpecErr(null)
       await refresh()
-    } catch (err) { flash(errText(err), 'warn') }
+    } catch (err) { console.error(err); specFail(errText(err)) }
     finally { setBusy(null) }
   }
 
@@ -425,7 +432,7 @@ export default function PetugasQueue() {
                     <span className={`text-[11px] font-bold tabular-nums shrink-0 ${full ? 'text-rose-600' : 'text-slate-500'}`}>{full ? 'Kuota penuh' : `${issued}/${quota}`}</span>
                   </div>
                   <button
-                    onClick={() => { setSpecOpen(svc); setSpecificNum(''); setDirectName('') }}
+                    onClick={() => openSpec(svc)}
                     title="Panggil nomor kupon"
                     className={`btn ${c.btn} text-white w-full !py-2.5 !rounded-lg !text-[13px] mt-2`}
                   >
@@ -439,7 +446,7 @@ export default function PetugasQueue() {
                           <button
                             key={q.id}
                             title={q.status === 'SKIPPED' ? `${q.number} (dilewati) — klik untuk panggil ulang` : `${q.number} — klik untuk panggil ulang`}
-                            onClick={() => { setSpecOpen(svc); setSpecificNum(q.number); setDirectName('') }}
+                            onClick={() => openSpec(svc, q.number)}
                             className={`rounded-md border px-2 py-1 text-[11px] font-extrabold tabular-nums transition hover:ring-2 ${c.pill} ${c.ring} ${q.status === 'SKIPPED' ? 'line-through opacity-60' : ''}`}
                           >
                             {q.number}
@@ -479,6 +486,9 @@ export default function PetugasQueue() {
           {specOpen && isNameCallService(specOpen) && (
             <p className="text-sm font-semibold text-blue-700">Perekaman KTP dipanggil berbasis nama: nama di bawah yang tampil di monitor & diumumkan via audio (satu nama per panggilan).</p>
           )}
+          {specErr && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-[13px] font-semibold text-rose-700">{specErr}</div>
+          )}
           <Field label="Nomor Antrean *">
             <input
               className="input font-mono"
@@ -499,7 +509,7 @@ export default function PetugasQueue() {
               />
             </Field>
           )}
-          <button className="btn-primary w-full" disabled={busy === `direct-${specOpen?.id}`}><Search size={16} /> {busy === `direct-${specOpen?.id}` ? 'Memanggil…' : 'Panggil Sekarang'}</button>
+          <button type="submit" className="btn-primary w-full" disabled={busy === `direct-${specOpen?.id}`}><Search size={16} /> {busy === `direct-${specOpen?.id}` ? 'Memanggil…' : 'Panggil Sekarang'}</button>
         </form>
       </Modal>
 
