@@ -35,7 +35,9 @@ export function useSpeech() {
   // TTS maksimal 1.0 — kode tidak bisa mengeraskan melebihi 100% sistem.
   const [volume, setVolumeState] = useState(() => {
     try {
-      const v = Number(localStorage.getItem('siap_volume'))
+      const raw = localStorage.getItem('siap_volume')
+      if (raw == null || raw === '') return 1
+      const v = Number(raw)
       return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1
     } catch { return 1 }
   })
