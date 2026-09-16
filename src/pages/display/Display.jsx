@@ -38,8 +38,9 @@ const SLIDE_INTERVAL_MS = 15_000
 
 // Panah kiri/kanan di sisi dalam panel informasi — pindah slide tanpa
 // menunggu auto-slide (auto-slide 15 dtk tetap lanjut dari slide terpilih).
-function SlideArrows({ onPrev, onNext }) {
-  const btn = 'absolute top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 hover:bg-black/60 text-white items-center justify-center backdrop-blur-sm transition no-print flex'
+// Hanya terlihat saat kursor/sentuhan berada di area panel (`visible`).
+function SlideArrows({ onPrev, onNext, visible }) {
+  const btn = `absolute top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 hover:bg-black/60 text-white items-center justify-center backdrop-blur-sm transition-all no-print flex ${visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
   return (
     <>
       <button type="button" onClick={onPrev} aria-label="Slide sebelumnya" title="Sebelumnya" className={`${btn} left-2 md:left-3`}>
@@ -250,6 +251,18 @@ export default function Display() {
   const goPrev = useCallback(() => setSlide((s) => (s - 1 + slides.length) % slides.length), [slides.length])
   const goNext = useCallback(() => setSlide((s) => (s + 1) % slides.length), [slides.length])
 
+  // Panah navigasi hanya tampil saat kursor di atas panel informasi
+  // (layar TV bersih saat tidak dipakai). Di layar sentuh: tampil 3,5 dtk
+  // setiap ada sentuhan di panel, lalu menghilang lagi.
+  const [navOn, setNavOn] = useState(false)
+  const navTimer = useRef(null)
+  useEffect(() => () => clearTimeout(navTimer.current), [])
+  const pokeNav = useCallback(() => {
+    setNavOn(true)
+    clearTimeout(navTimer.current)
+    navTimer.current = setTimeout(() => setNavOn(false), 3500)
+  }, [])
+
   // Gambar istirahat: tampil terus memenuhi panel kiri selama jam istirahat
   // (tanpa teks — semua info sudah ada di gambarnya), cukup dot slideshow.
   // `now` berdetak tiap detik sehingga muncul/hilang tepat waktu tanpa refresh.
@@ -302,8 +315,15 @@ export default function Display() {
 
       {/* Body */}
       <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_400px] gap-4 p-3 md:p-4 overflow-hidden">
-        {/* Kiri: slideshow informasi (diganti gambar istirahat selama jam istirahat) */}
-        <div className={`bg-[#0f1b33] text-white rounded-2xl flex flex-col min-h-0 overflow-hidden relative ${!inRest && current?.kind !== 'photo' ? 'p-4 md:p-6' : ''}`}>
+        {/* Kiri: slideshow informasi (diganti gambar istirahat selama jam istirahat).
+            Chrome tetap (sapaan atas + bawah, dots, panah) untuk semua jenis
+            slide — gambar tidak pernah tertutup teks. */}
+        <div
+          className={`bg-[#0f1b33] text-white rounded-2xl flex flex-col min-h-0 overflow-hidden relative ${!inRest ? 'p-4 md:p-6' : ''}`}
+          onMouseEnter={() => setNavOn(true)}
+          onMouseLeave={() => { clearTimeout(navTimer.current); setNavOn(false) }}
+          onTouchStart={pokeNav}
+        >
           {inRest ? (
           <div key="rest" className="animate-slide-in absolute inset-0 overflow-hidden">
             <img
@@ -320,39 +340,42 @@ export default function Display() {
               />
             </div>
             <SlideDots count={slides.length} active={slide % slides.length} onGo={setSlide} />
-            <SlideArrows onPrev={goPrev} onNext={goNext} />
+            <SlideArrows onPrev={goPrev} onNext={goNext} visible={navOn} />
           </div>
-          ) : current?.kind === 'photo' ? (
-            // Foto tunggal (alur): tanpa teks sama sekali, gambar utuh tanpa crop —
-            // panel tetap terisi penuh via latar blur dari gambar yang sama.
-            // Gambar depan diberi jeda + sudut melengkung agar tidak terpotong
-            // pinggiran panel dan terlihat rapih.
-            <div key={`body-${slide}`} className="animate-slide-in absolute inset-0 overflow-hidden">
-              <img
-                src={current.item.url || current.item.file_path}
-                alt=""
-                aria-hidden="true"
-                className="absolute inset-0 h-full w-full object-cover blur-2xl scale-110 opacity-60"
-              />
-              {/* Kotak mengikuti ukuran gambar (bukan diregang penuh) agar
-                  radius sudut benar-benar memotong sudut gambarnya */}
-              <div className="absolute inset-0 p-3 md:p-4 flex items-center justify-center">
+          ) : (
+          <>
+          {/* Latar blur dari gambar yang sama (hanya slide foto tunggal) agar
+              panel tetap terisi penuh di balik bingkai teks. */}
+          {current?.kind === 'photo' && (
+            <img
+              src={current.item.url || current.item.file_path}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover blur-2xl scale-110 opacity-60 pointer-events-none"
+            />
+          )}
+          <div className="text-center shrink-0 relative">
+            {/* Sapaan hanya di slide berisi foto petugas (terletak di atas);
+                slide gambar tunggal alur tampil bersih tanpa teks. */}
+            {current?.kind !== 'photo' && (
+              <>
+                <div className="text-2xl md:text-3xl font-extrabold text-white tracking-wide">Selamat Datang</div>
+                <div className="text-base md:text-xl font-bold text-white mt-1">Di Kantor Kecamatan Panakkukang</div>
+              </>
+            )}
+          </div>
+          <div key={`body-${slide}`} className="animate-slide-in mt-3 flex-1 min-h-0 overflow-hidden flex flex-col relative">
+            {current?.kind === 'photo' ? (
+              // Foto tunggal (alur): gambar utuh tanpa crop, di tengah antara
+              // bar sapaan atas dan bawah — tidak ada teks menutupinya.
+              <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
                 <img
                   src={current.item.url || current.item.file_path}
                   alt={current.item.title || current.item.name}
-                  className="max-h-full max-w-full object-contain rounded-3xl"
+                  className="max-h-full max-w-full object-contain rounded-2xl shadow-2xl"
                 />
               </div>
-              <SlideDots count={slides.length} active={slide % slides.length} onGo={setSlide} />
-              <SlideArrows onPrev={goPrev} onNext={goNext} />
-            </div>
-          ) : (
-          <>
-          <div className="text-center">
-            <div className="text-lg md:text-xl font-extrabold text-white">Selamat Datang Di Kantor Camat Panakkukang</div>
-          </div>
-          <div key={`body-${slide}`} className="animate-slide-in mt-3 flex-1 min-h-0 overflow-hidden flex flex-col">
-            {current?.kind === 'photos' ? (
+            ) : current?.kind === 'photos' ? (
               <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
                 {current.items.map((im) => (
                   <figure key={im.id} className="flex-1 min-w-0 min-h-0 flex flex-col items-center overflow-hidden">
@@ -375,7 +398,7 @@ export default function Display() {
               </div>
             )}
           </div>
-          <div className="flex gap-1.5 justify-center mt-4 shrink-0">
+          <div className="flex gap-1.5 justify-center mt-3 shrink-0 relative">
             {slides.map((_, i) => (
               <button
                 key={i}
@@ -387,7 +410,7 @@ export default function Display() {
               />
             ))}
           </div>
-          <SlideArrows onPrev={goPrev} onNext={goNext} />
+          <SlideArrows onPrev={goPrev} onNext={goNext} visible={navOn} />
           </>
           )}
         </div>
