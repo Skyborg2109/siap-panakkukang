@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Volume2, VolumeX, Megaphone } from 'lucide-react'
+import { Volume2, VolumeX, Megaphone, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getTodayQueueList } from '../../services/queueService.js'
 import { getAnnouncements, getServices } from '../../services/masterService.js'
 import { getDisplayImages, getLatestKK, getLatestBroadcast, getRestConfig, imageUrl } from '../../services/displayService.js'
@@ -35,6 +35,22 @@ const LS_LAST_BC = 'siap_last_bc'
 // Durasi tiap slide papan informasi (milis) — ubah satu angka ini bila ingin
 // perpindahan konten lebih cepat / lambat.
 const SLIDE_INTERVAL_MS = 15_000
+
+// Panah kiri/kanan di sisi dalam panel informasi — pindah slide tanpa
+// menunggu auto-slide (auto-slide 15 dtk tetap lanjut dari slide terpilih).
+function SlideArrows({ onPrev, onNext }) {
+  const btn = 'absolute top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full bg-black/40 hover:bg-black/60 text-white items-center justify-center backdrop-blur-sm transition no-print flex'
+  return (
+    <>
+      <button type="button" onClick={onPrev} aria-label="Slide sebelumnya" title="Sebelumnya" className={`${btn} left-2 md:left-3`}>
+        <ChevronLeft size={22} />
+      </button>
+      <button type="button" onClick={onNext} aria-label="Slide berikutnya" title="Berikutnya" className={`${btn} right-2 md:right-3`}>
+        <ChevronRight size={22} />
+      </button>
+    </>
+  )
+}
 
 // Indikator dot slideshow — berupa tombol agar operator bisa langsung
 // melompat ke slide tertentu dengan menekan dot-nya (auto-slide 15 dtk
@@ -229,6 +245,11 @@ export default function Display() {
 
   const current = slides[slide % slides.length]
 
+  // Navigasi manual: panah kiri/kanan + dot melompat ke slide mana pun,
+  // auto-slide 15 dtk lanjut dari posisi terpilih.
+  const goPrev = useCallback(() => setSlide((s) => (s - 1 + slides.length) % slides.length), [slides.length])
+  const goNext = useCallback(() => setSlide((s) => (s + 1) % slides.length), [slides.length])
+
   // Gambar istirahat: tampil terus memenuhi panel kiri selama jam istirahat
   // (tanpa teks — semua info sudah ada di gambarnya), cukup dot slideshow.
   // `now` berdetak tiap detik sehingga muncul/hilang tepat waktu tanpa refresh.
@@ -299,6 +320,7 @@ export default function Display() {
               />
             </div>
             <SlideDots count={slides.length} active={slide % slides.length} onGo={setSlide} />
+            <SlideArrows onPrev={goPrev} onNext={goNext} />
           </div>
           ) : current?.kind === 'photo' ? (
             // Foto tunggal (alur): tanpa teks sama sekali, gambar utuh tanpa crop —
@@ -322,12 +344,12 @@ export default function Display() {
                 />
               </div>
               <SlideDots count={slides.length} active={slide % slides.length} onGo={setSlide} />
+              <SlideArrows onPrev={goPrev} onNext={goNext} />
             </div>
           ) : (
           <>
           <div className="text-center">
-            <div className="text-[11px] font-bold tracking-[0.18em] text-orange-300">LAYAR INFROMASI</div>
-            <div key={slide} className="animate-slide-in text-lg md:text-xl font-extrabold mt-1">{current?.heading}</div>
+            <div className="text-lg md:text-xl font-extrabold text-white">Selamat Datang Di Kantor Camat Panakkukang</div>
           </div>
           <div key={`body-${slide}`} className="animate-slide-in mt-3 flex-1 min-h-0 overflow-hidden flex flex-col">
             {current?.kind === 'photos' ? (
@@ -365,6 +387,7 @@ export default function Display() {
               />
             ))}
           </div>
+          <SlideArrows onPrev={goPrev} onNext={goNext} />
           </>
           )}
         </div>

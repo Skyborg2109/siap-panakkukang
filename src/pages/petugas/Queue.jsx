@@ -223,12 +223,13 @@ export default function PetugasQueue() {
     await runOn(`recall-${svc.id}`, target.id, () => Promise.all(list.map((q) => setStatus(q.id, 'CALLED', { called_at: now }))))
   }
 
-  // Selesai / Berikutnya → langsung panggil nomor berikutnya
-  // (tertinggi dari batch aktif + 1) DARI JENIS YANG SAMA dengan kartu
-  // yang tombolnya ditekan.
+  // Berikutnya → selesaikan nomor aktif lalu langsung panggil nomor
+  // berikutnya (tertinggi dari batch aktif + 1) DARI JENIS YANG SAMA dengan
+  // kartu yang tombolnya ditekan.
   // Kupon fisik: nomor berikut dibuatkan otomatis bila belum terdaftar
   // (callDirect), atau dipanggil ulang bila sudah ada.
-  // Selesai = nomor aktif COMPLETED; Berikutnya = nomor aktif SKIPPED (dilewati).
+  // Nomor aktif selalu ditandai COMPLETED — tidak ada tombol Selesai
+  // terpisah; SKIPPED hanya dari "Lewati & panggil" di modal Panggil Nomor.
   const finishAndCallNext = async (svc, key, finishFn, verb) => {
     const actives = activeByService[svc.id] || []
     const target = targetOf(svc.id)
@@ -236,7 +237,7 @@ export default function PetugasQueue() {
     setBusy(key)
     try {
       // Batch serentak (>1 nomor aktif): chip tidak bisa dipilih satuan, jadi
-      // Selesai/Berikutnya menghabiskan SEMUA nomor aktif sekaligus, lalu
+      // Berikutnya menghabiskan SEMUA nomor aktif sekaligus (COMPLETED), lalu
       // fokus pindah ke nomor berikutnya.
       const multi = actives.length > 1
       const done = multi ? actives : [target]
@@ -442,7 +443,7 @@ export default function PetugasQueue() {
           </div>
           {!loading && !loadError && visibleServices.length > 0 && Object.values(activeByService).every((a) => a.length === 0) && (
             <div className="card p-3 mb-4 text-sm text-slate-600 bg-blue-50/60 border border-blue-100">
-              Belum ada nomor yang dipanggil — tombol <b>Ulangi / Selesai / Berikutnya</b> aktif setelah ada nomor aktif.
+              Belum ada nomor yang dipanggil — tombol <b>Ulangi / Berikutnya</b> aktif setelah ada nomor aktif.
               Untuk memanggil, gunakan tombol <b>Panggil Nomor</b> di panel kanan.
             </div>
           )}
@@ -522,7 +523,7 @@ export default function PetugasQueue() {
                         </>
                       )}
                     </div>
-                    <div className="grid grid-cols-3 gap-2 px-3 pb-3">
+                    <div className="grid grid-cols-2 gap-2 px-3 pb-3">
                       <button
                         disabled={!target || busy === `recall-${svc.id}`}
                         onClick={() => recallTarget(svc)}
@@ -531,18 +532,10 @@ export default function PetugasQueue() {
                         <Volume2 size={14} /> Ulangi
                       </button>
                       <button
-                        disabled={!target || busy === `done-${svc.id}`}
-                        onClick={() => target && finishAndCallNext(svc, `done-${svc.id}`, completeQueue, 'selesai')}
-                        title="Tandai nomor aktif selesai & panggil nomor berikutnya"
+                        disabled={!target || busy === `next-${svc.id}`}
+                        onClick={() => target && finishAndCallNext(svc, `next-${svc.id}`, completeQueue, 'selesai')}
+                        title="Selesaikan nomor aktif & panggil nomor berikutnya"
                         className="btn-success !px-2 !py-2 !text-xs !rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <Check size={14} /> Selesai
-                      </button>
-                      <button
-                        disabled={!target || busy === `skip-${svc.id}`}
-                        onClick={() => target && finishAndCallNext(svc, `skip-${svc.id}`, skipQueue, 'dilewati')}
-                        title="Lewati nomor aktif & panggil nomor berikutnya"
-                        className="btn-secondary !px-2 !py-2 !text-xs !rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <ChevronsRight size={14} /> Berikutnya
                       </button>
