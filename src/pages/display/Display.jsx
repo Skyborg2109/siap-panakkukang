@@ -339,11 +339,11 @@ export default function Display() {
                   {nameCall && hasRealName(called.name) ? (
                     <>
                       <div className="font-extrabold text-[clamp(1.5rem,5vh,2.5rem)] lg:text-[26cqh] leading-tight tracking-tight text-slate-900 break-words">{String(called.name).trim()}</div>
-                      <div className="text-xs lg:text-[7.5cqh] text-slate-400 mt-1 lg:mt-[0.8cqh] font-mono tabular-nums">{called.number}</div>
+                      <div className="text-sm lg:text-[10cqh] text-slate-400 mt-1 lg:mt-[0.8cqh] font-mono tabular-nums">{called.number}</div>
                     </>
                   ) : (
                     <>
-                      <div className="font-extrabold text-[clamp(1.75rem,6vh,3rem)] lg:text-[30cqh] leading-none tracking-tight text-slate-900 tabular-nums truncate">{called.number}</div>
+                      <div className="font-extrabold text-[clamp(2.5rem,9vh,4.5rem)] lg:text-[42cqh] leading-none tracking-tight text-slate-900 tabular-nums truncate">{called.number}</div>
                       {hasRealName(called.name) && (
                         <div className="text-sm lg:text-[8.5cqh] text-slate-500 mt-1 lg:mt-[0.8cqh] truncate">a.n. <b className="text-slate-700">{String(called.name).trim()}</b></div>
                       )}
