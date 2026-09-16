@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import AdminShell from './AdminShell.jsx'
-import { getAllDisplayImages, uploadDisplayImage, deleteDisplayImage, getRestConfig, saveRestConfig, uploadRestImage, deleteRestImage, imageUrl } from '../../services/displayService.js'
+import { getAllDisplayImages, uploadDisplayImage, deleteDisplayImage } from '../../services/displayService.js'
 import { isSupabaseConfigured } from '../../lib/supabase.js'
 import { Field, Empty } from '../../components/ui/ui.jsx'
 
@@ -30,48 +30,6 @@ export default function AdminDisplay() {
 
   const load = () => getAllDisplayImages().then(setRows).catch(() => {})
   useEffect(() => { load() }, [])
-
-  // ---- Gambar informasi istirahat (tampil di Display TV selama jam istirahat) ----
-  const [rest, setRest] = useState({ enabled: false, start: '12:00', end: '13:00', image: '' })
-  const [restFile, setRestFile] = useState(null)
-  const [restPreview, setRestPreview] = useState('')
-  const [restKey, setRestKey] = useState(0)
-  const [restSaving, setRestSaving] = useState(false)
-
-  const loadRest = () => getRestConfig().then((r) => { setRest(r); setRestPreview(r.image ? imageUrl(r.image) : '') }).catch(() => {})
-  useEffect(() => { loadRest() }, [])
-
-  const onRestFile = (e) => {
-    const f = e.target.files?.[0]
-    if (!f) return
-    if (f.size > maxMB * 1024 * 1024) return alert(`Maksimal ${maxMB}MB.`)
-    setRestFile(f)
-    const r = new FileReader()
-    r.onload = () => setRestPreview(r.result)
-    r.readAsDataURL(f)
-  }
-
-  const saveRest = async (e) => {
-    e.preventDefault()
-    setRestSaving(true)
-    try {
-      let image = rest.image
-      if (restFile || (restPreview && restPreview.startsWith('data:'))) {
-        const path = await uploadRestImage({ file: restFile, base64: restPreview })
-        // Ganti file lama di Storage agar tak menumpuk (abaikan bila gagal)
-        if (isSupabaseConfigured && image && image !== path) deleteRestImage(image).catch(() => {})
-        image = path
-      }
-      if (!image) return alert('Pilih file gambar istirahat dulu.')
-      const saved = await saveRestConfig({ ...rest, image })
-      setRest(saved)
-      setRestFile(null)
-      setRestPreview(saved.image ? imageUrl(saved.image) : '')
-      setRestKey((k) => k + 1)
-      alert('Pengaturan istirahat tersimpan.')
-    } catch (err) { alert(err.message) }
-    finally { setRestSaving(false) }
-  }
 
   const onFile = (e) => {
     const f = e.target.files?.[0]
@@ -104,18 +62,6 @@ export default function AdminDisplay() {
   return (
       <AdminShell title="Gambar Display TV" subtitle="Slideshow kiri display: foto pimpinan, petugas & alur (Supabase Storage / demo lokal)">
       <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-3 card p-5">
-          <div className="text-sm font-bold">Gambar Informasi Istirahat</div>
-          <p className="text-xs text-slate-500 mt-0.5">Ditampilkan terus di panel kiri Display TV selama jam istirahat (panel antrean & ticker tetap jalan).</p>
-          <form onSubmit={saveRest} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
-            <Field label="Status"><select className="input" value={rest.enabled ? '1' : '0'} onChange={(e) => setRest({ ...rest, enabled: e.target.value === '1' })}><option value="1">Aktif</option><option value="0">Nonaktif</option></select></Field>
-            <Field label="Jam Mulai Istirahat"><input type="time" className="input" value={rest.start} onChange={(e) => setRest({ ...rest, start: e.target.value })} /></Field>
-            <Field label="Jam Selesai Istirahat"><input type="time" className="input" value={rest.end} onChange={(e) => setRest({ ...rest, end: e.target.value })} /></Field>
-            <Field label={`File Gambar (maks ${maxMB}MB${isSupabaseConfigured ? '' : ' demo'})`}><input key={restKey} type="file" accept="image/*" onChange={onRestFile} className="input" /></Field>
-            {restPreview && <div className="sm:col-span-2 lg:col-span-4"><img src={restPreview} alt="pratinjau istirahat" className="rounded-xl max-h-40 mx-auto" /></div>}
-            <div className="sm:col-span-2 lg:col-span-4"><button disabled={restSaving} className="btn-primary w-full">{restSaving ? 'Menyimpan…' : 'Simpan Pengaturan Istirahat'}</button></div>
-          </form>
-        </div>
         <form onSubmit={save} className="card p-5 h-fit space-y-3">
           <div className="text-sm font-bold">Upload Baru</div>
           <Field label="Kategori">

@@ -36,6 +36,26 @@ const LS_LAST_BC = 'siap_last_bc'
 // perpindahan konten lebih cepat / lambat.
 const SLIDE_INTERVAL_MS = 15_000
 
+// Indikator dot slideshow — berupa tombol agar operator bisa langsung
+// melompat ke slide tertentu dengan menekan dot-nya (auto-slide 15 dtk
+// tetap jalan dari slide yang dipilih).
+function SlideDots({ count, active, onGo, dim }) {
+  return (
+    <div className="absolute bottom-4 md:bottom-5 left-0 right-0 flex gap-1.5 justify-center">
+      {Array.from({ length: count }, (_, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onGo(i)}
+          aria-label={`Tampilkan slide ${i + 1}`}
+          title={`Slide ${i + 1}`}
+          className={`h-2 rounded-full transition-all cursor-pointer hover:scale-125 ${i === active ? 'w-8 bg-orange-500' : `w-2 ${dim ? 'bg-white/20' : 'bg-white/50'}`}`}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function Display() {
   const [queues, setQueues] = useState([])
   const [announcements, setAnnouncements] = useState([])
@@ -278,11 +298,7 @@ export default function Display() {
                 className="max-h-full max-w-full object-contain rounded-3xl"
               />
             </div>
-            <div className="absolute bottom-4 md:bottom-5 left-0 right-0 flex gap-1.5 justify-center">
-              {slides.map((_, i) => (
-                <span key={i} className={`h-2 rounded-full transition-all ${i === slide % slides.length ? 'w-8 bg-orange-500' : 'w-2 bg-white/50'}`} />
-              ))}
-            </div>
+            <SlideDots count={slides.length} active={slide % slides.length} onGo={setSlide} />
           </div>
           ) : current?.kind === 'photo' ? (
             // Foto tunggal (alur): tanpa teks sama sekali, gambar utuh tanpa crop —
@@ -305,11 +321,7 @@ export default function Display() {
                   className="max-h-full max-w-full object-contain rounded-3xl"
                 />
               </div>
-              <div className="absolute bottom-4 md:bottom-5 left-0 right-0 flex gap-1.5 justify-center">
-                {slides.map((_, i) => (
-                  <span key={i} className={`h-2 rounded-full transition-all ${i === slide % slides.length ? 'w-8 bg-orange-500' : 'w-2 bg-white/50'}`} />
-                ))}
-              </div>
+              <SlideDots count={slides.length} active={slide % slides.length} onGo={setSlide} />
             </div>
           ) : (
           <>
@@ -343,7 +355,14 @@ export default function Display() {
           </div>
           <div className="flex gap-1.5 justify-center mt-4 shrink-0">
             {slides.map((_, i) => (
-              <span key={i} className={`h-2 rounded-full transition-all ${i === slide % slides.length ? 'w-8 bg-orange-500' : 'w-2 bg-white/20'}`} />
+              <button
+                key={i}
+                type="button"
+                onClick={() => setSlide(i)}
+                aria-label={`Tampilkan slide ${i + 1}`}
+                title={`Slide ${i + 1}`}
+                className={`h-2 rounded-full transition-all cursor-pointer hover:scale-125 ${i === slide % slides.length ? 'w-8 bg-orange-500' : 'w-2 bg-white/20'}`}
+              />
             ))}
           </div>
           </>

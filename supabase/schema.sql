@@ -470,3 +470,24 @@ create policy "admin update display-images" on storage.objects
 drop policy if exists "admin delete display-images" on storage.objects;
 create policy "admin delete display-images" on storage.objects
   for delete using (bucket_id = 'display-images' and public.current_role() = 'ADMIN');
+
+-- Petugas: kelola baris display_contents key='rest' (notifikasi istirahat
+-- dikelola dari panel petugas). Admin tetap full akses via policy di atas.
+drop policy if exists "staff manage rest content" on public.display_contents;
+create policy "staff manage rest content" on public.display_contents
+  for all using (key = 'rest' and public.current_role() in ('PETUGAS','ADMIN'))
+  with check (key = 'rest' and public.current_role() in ('PETUGAS','ADMIN'));
+
+-- Petugas: upload / ubah / hapus gambar istirahat (hanya folder rest/...).
+drop policy if exists "staff insert rest image" on storage.objects;
+create policy "staff insert rest image" on storage.objects
+  for insert with check (bucket_id = 'display-images' and name like 'rest/%' and public.current_role() in ('PETUGAS','ADMIN'));
+
+drop policy if exists "staff update rest image" on storage.objects;
+create policy "staff update rest image" on storage.objects
+  for update using (bucket_id = 'display-images' and name like 'rest/%' and public.current_role() in ('PETUGAS','ADMIN'))
+  with check (bucket_id = 'display-images' and name like 'rest/%');
+
+drop policy if exists "staff delete rest image" on storage.objects;
+create policy "staff delete rest image" on storage.objects
+  for delete using (bucket_id = 'display-images' and name like 'rest/%' and public.current_role() in ('PETUGAS','ADMIN'));

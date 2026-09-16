@@ -10,9 +10,11 @@ import {
   parseQueueNumbers,
 } from '../../services/queueService.js'
 import { getServices } from '../../services/masterService.js'
-import { callKKCase, sendBroadcast } from '../../services/displayService.js'
+import { callKKCase, sendBroadcast, getRestConfig, saveRestConfig, uploadRestImage, deleteRestImage, imageUrl } from '../../services/displayService.js'
+import { isSupabaseConfigured } from '../../lib/supabase.js'
 import { quotaFor, isNameCallService, isSingleCallService } from '../../lib/constants.js'
 import { hasRealName, getTodayResetAt } from '../../utils/queue.js'
+import { isRestNow } from '../../utils/date.js'
 import { Modal, Field } from '../../components/ui/ui.jsx'
 
 const menu = [
@@ -100,9 +102,16 @@ export default function PetugasQueue() {
   const openSpec = (svc, num = '') => { setSpecOpen(svc); setSpecificNum(num); setDirectName(''); setSpecErr(null); setSpecPending(null) }
   const [editOpen, setEditOpen] = useState(null)
   const [editName, setEditName] = useState('')
+  // Notifikasi istirahat Display TV (gambar + jam tampil) — dikelola dari
+  // panel ini agar petugas jaga bisa menyalakan/mematikan langsung.
+  const [rest, setRest] = useState({ enabled: false, start: '12:00', end: '13:00', image: '' })
+  const [restFile, setRestFile] = useState(null)
+  const [restPreview, setRestPreview] = useState('')
+  const [restKey, setRestKey] = useState(0)
+  const [restSaving, setRestSaving] = useState(false)
+  const restFileRef = useRef(null)
   const [notice, setNotice] = useState(null)
   const noticeTimer = useRef(null)
-
   // Konfirmasi hasil Selesai/Berikutnya (nomor apa → otomatis memanggil nomor apa)
   const flash = (text, tone = 'ok') => {
     setNotice({ text, tone })
@@ -148,6 +157,26 @@ export default function PetugasQueue() {
     const t = setInterval(refresh, 3000)
     return () => { clearInterval(t); window.removeEventListener('siap:queues-changed', onCh); window.removeEventListener('storage', onCh) }
   }, [refresh])
+
+  // Muat konfigurasi istirahat sekali saat dibuka (+ saat ada perubahan dari
+  // tab lain). Sengaja TIDAK ikut polling 3 dtk agar ketikan/gambar yang
+  // sedang diubah petugas tidak tertimpa saat mengetik jam.
+  useEffect(() => {
+    let on = true
+    const loadRest = async () => {
+      try {
+        const r = await getRestConfig()
+        if (!on) return
+        setRest(r)
+        if (!restFileRef.current) setRestPreview(r.image ? imageUrl(r.image) : '')
+      } catch { /* abaikan */ }
+    }
+    loadRest()
+    const onMaster = () => loadRest()
+    window.addEventListener('siap:master-changed', onMaster)
+    window.addEventListener('storage', onMaster)
+    return () => { on = false; window.removeEventListener('siap:master-changed', onMaster); window.removeEventListener('storage', onMaster) }
+  }, [])
 
   // Jenis antrean aktif dari master (KTP, Perekaman, IKD, KK Online, KK Biasa, …)
   const visibleServices = services
@@ -345,6 +374,47 @@ export default function PetugasQueue() {
     try { await withTimeout(resetToday(), 20000); setSelected({}); await refresh() } catch (e) { flash(errText(e), 'warn') }
     finally { setBusy(null) }
   }
+
+  const maxRestMB = isSupabaseConfigured ? 5 : 2
+
+  const onRestFile = (e) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (f.size > maxRestMB * 1024 * 1024) return flash(`Gambar maksimal ${maxRestMB}MB.`, 'warn')
+    setRestFile(f)
+    restFileRef.current = f
+    const r = new FileReader()
+    r.onload = () => setRestPreview(r.result)
+    r.readAsDataURL(f)
+  }
+
+  const handleRestSave = async (e) => {
+    if (e && e.preventDefault) e.preventDefault()
+    setRestSaving(true)
+    try {
+      let image = rest.image
+      if (restFile || (restPreview && restPreview.startsWith('data:'))) {
+        const path = await withTimeout(uploadRestImage({ file: restFile, base64: restPreview }), 20000)
+        // Ganti file lama di Storage agar tak menumpuk (abaikan bila gagal)
+        if (isSupabaseConfigured && image && image !== path) deleteRestImage(image).catch(() => {})
+        image = path
+      }
+      if (!image) return flash('Pilih file gambar istirahat dulu.', 'warn')
+      const saved = await withTimeout(saveRestConfig({ ...rest, image }), 20000)
+      setRest(saved)
+      setRestFile(null)
+      restFileRef.current = null
+      setRestPreview(saved.image ? imageUrl(saved.image) : '')
+      setRestKey((k) => k + 1)
+      flash(saved.enabled
+        ? `Notifikasi istirahat AKTIF (${saved.start}–${saved.end}). Display TV menampilkan gambar istirahat pada jam tersebut.`
+        : 'Notifikasi istirahat dinonaktifkan. Display TV kembali ke slideshow biasa.')
+    } catch (err) { flash(errText(err), 'warn') }
+    finally { setRestSaving(false) }
+  }
+
+  // Status live untuk label kartu (render ulang tiap polling 3 dtk)
+  const restShowing = rest.enabled && rest.image ? isRestNow(rest, new Date()) : false
 
   // Nomor aktif di layanan yang modal "Panggil Nomor"-nya sedang terbuka —
   // untuk peringatan anti-menumpuk di dalam modal.
@@ -571,6 +641,30 @@ export default function PetugasQueue() {
             >
               <RotateCcw size={15} /> {busy === 'reset' ? 'Mereset…' : 'Reset Antrean Hari Ini'}
             </button>
+          </div>
+          <div className="card p-4 mt-4">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-bold text-slate-800 flex-1">Notifikasi Istirahat</span>
+              <span className={`badge !text-[10px] ${restShowing ? 'bg-emerald-100 text-emerald-700' : rest.enabled ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                {restShowing ? 'Sedang tampil di TV' : rest.enabled ? 'Terjadwal' : 'Nonaktif'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">Gambar ini menggantikan slideshow kiri Display TV selama jam istirahat (panel antrean & ticker tetap jalan).</p>
+            <form onSubmit={handleRestSave} className="space-y-2.5 mt-3">
+              <Field label="Status">
+                <select className="input" value={rest.enabled ? '1' : '0'} onChange={(e) => setRest({ ...rest, enabled: e.target.value === '1' })}>
+                  <option value="1">Aktif</option>
+                  <option value="0">Nonaktif</option>
+                </select>
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Jam Mulai"><input type="time" className="input" value={rest.start} onChange={(e) => setRest({ ...rest, start: e.target.value })} /></Field>
+                <Field label="Jam Selesai"><input type="time" className="input" value={rest.end} onChange={(e) => setRest({ ...rest, end: e.target.value })} /></Field>
+              </div>
+              <Field label={`Gambar (maks ${maxRestMB}MB)`}><input key={restKey} type="file" accept="image/*" onChange={onRestFile} className="input" /></Field>
+              {restPreview && <img src={restPreview} alt="pratinjau istirahat" className="rounded-xl max-h-40 mx-auto" />}
+              <button disabled={restSaving} className="btn-primary w-full !py-2.5 !rounded-lg !text-[13px]">{restSaving ? 'Menyimpan…' : 'Simpan Notifikasi Istirahat'}</button>
+            </form>
           </div>
         </aside>
       </div>
