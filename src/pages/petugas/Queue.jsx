@@ -93,7 +93,11 @@ export default function PetugasQueue() {
   // Error submit "Panggil Nomor" wajib tampil DI DALAM modal — banner flash()
   // di atas halaman tertutup overlay modal sehingga kegagalan tampak "sunyi".
   const [specErr, setSpecErr] = useState(null)
-  const openSpec = (svc, num = '') => { setSpecOpen(svc); setSpecificNum(num); setDirectName(''); setSpecErr(null) }
+  // Konfirmasi penyelesaian saat nomor BARU diminta selagi masih ada aktif:
+  // { raw, numbers } — tombol Selesaikan/Lewati & panggil memanggil
+  // handleDirect(null, completeQueue|skipQueue).
+  const [specPending, setSpecPending] = useState(null)
+  const openSpec = (svc, num = '') => { setSpecOpen(svc); setSpecificNum(num); setDirectName(''); setSpecErr(null); setSpecPending(null) }
   const [editOpen, setEditOpen] = useState(null)
   const [editName, setEditName] = useState('')
   const [notice, setNotice] = useState(null)
@@ -238,50 +242,66 @@ export default function PetugasQueue() {
   // Panggil nomor kupon langsung + nama warga opsional (satu nomor).
   // Beberapa nomor sekaligus: pisah koma ("5,6,7") atau rentang ("5-8") —
   // dibuatkan sesuai kupon berurutan menaik lalu dipanggil serentak.
-  // Anti-menumpuk: nomor BARU tidak bisa dipanggil selama layanan ini masih
-  // punya nomor aktif (CALLED/SERVING) — selesaikan (Selesai) atau lewati
-  // (Berikutnya) dulu. Panggil ulang nomor yang sudah aktif tetap diizinkan
-  // (semua nomor yang diminta sudah aktif = recall via chip).
+  // Anti-menumpuk: nomor BARU (mis. KTP-24 saat KTP-23 aktif) hanya bisa
+  // dipanggil setelah nomor aktif diselesaikan — pilih Selesaikan atau Lewati
+  // pada kotak konfirmasi di modal (atau via tombol Selesai/Berikutnya di
+  // kartu kiri). Panggil ulang nomor yang sudah aktif langsung jalan tanpa
+  // konfirmasi (semua nomor yang diminta sudah aktif = recall via chip).
   // KTP & Perekaman KTP: satu nomor per panggilan (isSingleCallService).
   // Perekaman KTP: panggil berbasis nama — nama wajib & satu nama per panggilan.
-  const handleDirect = async (e) => {
-    e.preventDefault()
+  const handleDirect = async (e, finishFn) => {
+    if (e && e.preventDefault) e.preventDefault()
     const svc = specOpen
     // specFail: tampilkan di dalam modal (selalu terlihat) + banner global
     const specFail = (msg) => { setSpecErr(msg); flash(msg, 'warn') }
-    if (!svc || !specificNum.trim()) return specFail('Masukkan nomor antrean.')
+    if (!svc || !specificNum.trim()) { setSpecPending(null); return specFail('Masukkan nomor antrean.') }
     let numbers
     try {
       numbers = parseQueueNumbers(svc, specificNum)
-    } catch (err) { return specFail(errText(err)) }
+    } catch (err) { setSpecPending(null); return specFail(errText(err)) }
     const nameCall = isNameCallService(svc)
-    if (nameCall && numbers.length > 1) return specFail('Perekaman KTP dipanggil satu nama per panggilan — masukkan satu nomor saja.')
-    if (numbers.length > 1 && isSingleCallService(svc)) return specFail(`${svc.prefix || svc.name} hanya satu nomor per panggilan — masukkan satu nomor saja.`)
+    if (nameCall && numbers.length > 1) { setSpecPending(null); return specFail('Perekaman KTP dipanggil satu nama per panggilan — masukkan satu nomor saja.') }
+    if (numbers.length > 1 && isSingleCallService(svc)) { setSpecPending(null); return specFail(`${svc.prefix || svc.name} hanya satu nomor per panggilan — masukkan satu nomor saja.`) }
     if (nameCall) {
-      if (directName.trim().length < 3) return specFail('Untuk Perekaman KTP, nama wajib diisi (minimal 3 huruf) — nama yang tampil di monitor & diumumkan.')
+      if (directName.trim().length < 3) { setSpecPending(null); return specFail('Untuk Perekaman KTP, nama wajib diisi (minimal 3 huruf) — nama yang tampil di monitor & diumumkan.') }
     }
-    // Blokir nomor baru selama masih ada nomor aktif di layanan ini —
-    // cegah penumpukan (mis. KTP-13..KTP-22 aktif bersamaan).
+    // Nomor baru selagi masih ada nomor aktif → minta konfirmasi penyelesaian
+    // dulu (cegah penumpukan seperti KTP-13..KTP-22 aktif bersamaan).
     const actives = activeByService[svc.id] || []
+    const sortBySeq = (a, b) => (a.sequence || 0) - (b.sequence || 0)
     if (actives.length > 0) {
       const activeNums = new Set(actives.map((q) => String(q.number || '').toUpperCase()))
       const hasNew = numbers.some((n) => !activeNums.has(String(n).toUpperCase()))
-      if (hasNew) {
-        const label = [...actives].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)).map((q) => q.number).join(', ')
-        return specFail(`Masih ada nomor aktif (${label}). Selesaikan (Selesai) atau lewati (Berikutnya) dulu sebelum memanggil nomor baru.`)
+      if (hasNew && typeof finishFn !== 'function') {
+        setSpecPending({ raw: specificNum, numbers })
+        setSpecErr(null)
+        return
       }
     }
+    setSpecPending(null)
     setSpecErr(null)
     setBusy(`direct-${svc.id}`)
     try {
+      // Konfirmasi penyelesaian: habiskan nomor aktif dulu (seperti
+      // finishAndCallNext), baru panggil nomor yang diminta.
+      let doneMsg = ''
+      if (typeof finishFn === 'function' && actives.length > 0) {
+        const verb = finishFn === completeQueue ? 'selesai' : 'dilewati'
+        const doneLabel = actives.length > 1
+          ? `${actives.length} nomor (${[...actives].sort(sortBySeq).map((q) => q.number).join(', ')})`
+          : actives[0].number
+        await withTimeout(Promise.all(actives.map((q) => finishFn(q.id))), 20000)
+        doneMsg = `${doneLabel} ${verb}. `
+      }
       const res = await withTimeout(callDirectMany({ service: svc, raw: specificNum, name: directName }), 20000)
       if (res.length > 1) {
         setSelected((prev) => ({ ...prev, [svc.id]: res[res.length - 1].id }))
-        flash(`Memanggil ${res.length} nomor sekaligus: ${res.map((r) => r.number).join(', ')} (${svc.name}).`)
+        flash(`${doneMsg}Memanggil ${res.length} nomor sekaligus: ${res.map((r) => r.number).join(', ')} (${svc.name}).`)
       } else if (res.length === 1) {
         setSelected((prev) => ({ ...prev, [svc.id]: res[0].id }))
+        if (doneMsg) flash(`${doneMsg}Memanggil ${res[0].number} (${svc.name}).`)
       }
-      setSpecOpen(null); setSpecificNum(''); setDirectName(''); setSpecErr(null)
+      setSpecOpen(null); setSpecificNum(''); setDirectName(''); setSpecErr(null); setSpecPending(null)
       await refresh()
     } catch (err) { console.error(err); specFail(errText(err)) }
     finally { setBusy(null) }
@@ -476,12 +496,14 @@ export default function PetugasQueue() {
               const quota = quotaFor(svc)
               const issued = issuedOf(svc.id)
               const full = issued >= quota
-              // Nomor yang masih aktif (acuan panggil ulang ronde berjalan) —
-              // hanya CALLED/SERVING agar reset (aktif→SKIPPED) mengosongkan
-              // bagian ini; COMPLETED/SKIPPED tetap ada di Riwayat dan tetap
-              // bisa dipanggil ulang manual via modal "Panggil Nomor".
+              // Nomor yang sudah dipanggil hari ini (acuan panggil ulang) —
+              // aktif (CALLED/SERVING) + yang sudah selesai (COMPLETED), agar
+              // semua nomor yang pernah dipanggil tampil sebagai chip.
+              // SKIPPED dikecualikan: reset menandai WAITING→SKIPPED sehingga
+              // reset tetap mengosongkan bagian ini; nomor dilewati tetap bisa
+              // dipanggil ulang manual dengan mengetik di "Panggil Nomor".
               const handled = queues
-                .filter((q) => q.service_id === svc.id && ['CALLED', 'SERVING'].includes(q.status))
+                .filter((q) => q.service_id === svc.id && ['CALLED', 'SERVING', 'COMPLETED'].includes(q.status))
                 .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
               return (
                 <div key={svc.id} className="card p-4">
@@ -505,7 +527,7 @@ export default function PetugasQueue() {
                   {handled.length > 0 && (
                     <div className="mt-2">
                       <div className="text-[10px] font-bold tracking-[0.12em] text-slate-400 mb-1.5">SUDAH DIPANGGIL ({handled.length}) — KLIK UNTUK PANGGIL ULANG</div>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
                         {handled.map((q) => (
                           <button
                             key={q.id}
@@ -552,7 +574,16 @@ export default function PetugasQueue() {
           )}
           {specActives.length > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] font-semibold text-amber-800">
-              Masih aktif: {specActivesLabel} — selesaikan (Selesai) / lewati (Berikutnya) dulu untuk memanggil nomor baru. Nomor aktif yang sama tetap bisa dipanggil ulang.
+              Masih aktif: {specActivesLabel} — nomor baru akan meminta konfirmasi penyelesaian dulu. Nomor aktif yang sama tetap bisa dipanggil ulang langsung.
+            </div>
+          )}
+          {specPending && specPending.raw === specificNum && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] text-amber-800 space-y-2">
+              <div className="font-semibold">Masih aktif: {specActivesLabel}. Panggil {specPending.numbers.join(', ')} sebagai nomor berikutnya?</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => handleDirect(null, completeQueue)} disabled={busy === `direct-${specOpen?.id}`} className="btn-success !py-2 !text-xs !rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"><Check size={14} /> Selesaikan & panggil</button>
+                <button type="button" onClick={() => handleDirect(null, skipQueue)} disabled={busy === `direct-${specOpen?.id}`} className="btn-secondary !py-2 !text-xs !rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"><ChevronsRight size={14} /> Lewati & panggil</button>
+              </div>
             </div>
           )}
           {specErr && (

@@ -209,11 +209,11 @@ export default function Display() {
 
   const current = slides[slide % slides.length]
 
-  // Gambar istirahat: tampil terus di panel kiri selama jam istirahat.
+  // Gambar istirahat: tampil terus memenuhi panel kiri selama jam istirahat
+  // (tanpa teks — semua info sudah ada di gambarnya), cukup dot slideshow.
   // `now` berdetak tiap detik sehingga muncul/hilang tepat waktu tanpa refresh.
   // Panel kanan (kartu antrean), banner & ticker tetap jalan seperti biasa.
   const inRest = useMemo(() => isRestNow(rest, now), [rest, now])
-  const restRange = rest ? `${String(rest.start || '').replace(':', '.')}–${String(rest.end || '').replace(':', '.')}` : ''
 
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-[#eef2f7] text-slate-900 flex flex-col">
@@ -262,22 +262,28 @@ export default function Display() {
       {/* Body */}
       <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_400px] gap-4 p-3 md:p-4 overflow-hidden">
         {/* Kiri: slideshow informasi (diganti gambar istirahat selama jam istirahat) */}
-        <div className={`bg-[#0f1b33] text-white rounded-2xl flex flex-col min-h-0 overflow-hidden relative ${inRest || current?.kind !== 'photo' ? 'p-4 md:p-6' : ''}`}>
+        <div className={`bg-[#0f1b33] text-white rounded-2xl flex flex-col min-h-0 overflow-hidden relative ${!inRest && current?.kind !== 'photo' ? 'p-4 md:p-6' : ''}`}>
           {inRest ? (
-          <>
-          <div className="text-center shrink-0">
-            <div className="text-[11px] font-bold tracking-[0.18em] text-orange-300">INFORMASI</div>
-            <div className="text-lg md:text-xl font-extrabold mt-1">Istirahat {restRange} WITA</div>
-          </div>
-          <div className="mt-3 flex-1 min-h-0 overflow-hidden flex items-center justify-center">
+          <div key="rest" className="animate-slide-in absolute inset-0 overflow-hidden">
             <img
               src={imageUrl(rest.image)}
-              alt="Informasi istirahat pelayanan"
-              className="max-h-full max-w-full object-contain rounded-3xl"
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover blur-2xl scale-110 opacity-60"
             />
+            <div className="absolute inset-0 p-3 md:p-4 flex items-center justify-center">
+              <img
+                src={imageUrl(rest.image)}
+                alt="Informasi istirahat pelayanan"
+                className="max-h-full max-w-full object-contain rounded-3xl"
+              />
+            </div>
+            <div className="absolute bottom-4 md:bottom-5 left-0 right-0 flex gap-1.5 justify-center">
+              {slides.map((_, i) => (
+                <span key={i} className={`h-2 rounded-full transition-all ${i === slide % slides.length ? 'w-8 bg-orange-500' : 'w-2 bg-white/50'}`} />
+              ))}
+            </div>
           </div>
-          <div className="text-center text-slate-300 text-sm md:text-base mt-3 shrink-0">Pelayanan kembali pukul {String(rest.end || '').replace(':', '.')} WITA</div>
-          </>
           ) : current?.kind === 'photo' ? (
             // Foto tunggal (alur): tanpa teks sama sekali, gambar utuh tanpa crop —
             // panel tetap terisi penuh via latar blur dari gambar yang sama.
