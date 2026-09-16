@@ -342,7 +342,7 @@ export default function PetugasQueue() {
   const handleReset = async () => {
     if (!window.confirm('Reset antrean hari ini? Antrean yang masih aktif (menunggu/dipanggil/dilayani) akan ditandai Dilewati. Riwayat hari ini tetap tersimpan.')) return
     setBusy('reset')
-    try { await withTimeout(resetToday(), 20000); await refresh() } catch (e) { flash(errText(e), 'warn') }
+    try { await withTimeout(resetToday(), 20000); setSelected({}); await refresh() } catch (e) { flash(errText(e), 'warn') }
     finally { setBusy(null) }
   }
 
@@ -496,14 +496,24 @@ export default function PetugasQueue() {
               const quota = quotaFor(svc)
               const issued = issuedOf(svc.id)
               const full = issued >= quota
-              // Nomor yang sudah dipanggil hari ini (acuan panggil ulang) —
+              // Nomor yang sudah dipanggil pada RONDE ini (acuan panggil ulang) —
               // aktif (CALLED/SERVING) + yang sudah selesai (COMPLETED), agar
               // semua nomor yang pernah dipanggil tampil sebagai chip.
-              // SKIPPED dikecualikan: reset menandai WAITING→SKIPPED sehingga
-              // reset tetap mengosongkan bagian ini; nomor dilewati tetap bisa
-              // dipanggil ulang manual dengan mengetik di "Panggil Nomor".
+              // SKIPPED dikecualikan, DAN hanya baris yang tersentuh setelah
+              // reset terakhir hari ini (create/called/update >= siap_reset_at)
+              // yang tampil — resetToday() hanya menandai WAITING/CALLED/SERVING
+              // jadi SKIPPED (COMPLETED ikut tersisa), sehingga tanpa filter
+              // ronde ini chip COMPLETED tetap tampil setelah reset.
+              // Nomor lama tetap bisa dipanggil ulang manual via "Panggil Nomor";
+              // begitu dipanggil ulang (called_at/updated_at baru) chip-nya
+              // muncul lagi di ronde ini.
+              const resetSince = getTodayResetAt()
+              const inRound = (q) => !resetSince
+                || (q.created_at || '') >= resetSince
+                || (q.called_at || '') >= resetSince
+                || (q.updated_at || '') >= resetSince
               const handled = queues
-                .filter((q) => q.service_id === svc.id && ['CALLED', 'SERVING', 'COMPLETED'].includes(q.status))
+                .filter((q) => q.service_id === svc.id && ['CALLED', 'SERVING', 'COMPLETED'].includes(q.status) && inRound(q))
                 .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
               return (
                 <div key={svc.id} className="card p-4">
