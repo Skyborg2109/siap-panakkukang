@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Volume2, VolumeX, Megaphone } from 'lucide-react'
 import { getTodayQueueList } from '../../services/queueService.js'
 import { getAnnouncements, getServices } from '../../services/masterService.js'
-import { getDisplayImages, getLatestKK, getLatestBroadcast } from '../../services/displayService.js'
+import { getDisplayImages, getLatestKK, getLatestBroadcast, getRestConfig, imageUrl } from '../../services/displayService.js'
 import { useSpeech, useClock } from '../../hooks/hooks.js'
 import { GovLogos } from '../../layouts/layouts.jsx'
 import { formatClock, formatDateFull } from '../utils-imports.js'
+import { isRestNow } from '../../utils/date.js'
 import { hasRealName, kkCallNote } from '../../utils/queue.js'
 import { isLoketService, isNameCallService } from '../../lib/constants.js'
 
@@ -42,6 +43,7 @@ export default function Display() {
   const [images, setImages] = useState([])
   const [kk, setKk] = useState(null)
   const [broadcast, setBroadcast] = useState(null)
+  const [rest, setRest] = useState(null)
   const [slide, setSlide] = useState(0)
   const [unlocked, setUnlocked] = useState(false)
   const lastCalledRef = useRef(loadLastKey(LS_LAST_CALL))
@@ -67,18 +69,20 @@ export default function Display() {
 
   const refresh = useCallback(async () => {
     try {
-      const [q, a, s, img, latestKK, latestBc] = await Promise.all([
+      const [q, a, s, img, latestKK, latestBc, restCfg] = await Promise.all([
         getTodayQueueList(),
         getAnnouncements(),
         getServices(),
         getDisplayImages().catch(() => []),
         getLatestKK().catch(() => null),
         getLatestBroadcast().catch(() => null),
+        getRestConfig().catch(() => null),
       ])
       setQueues(q)
       setAnnouncements(a)
       setServices(s.filter((x) => x.is_active !== false))
       setImages(img)
+      setRest(restCfg)
       // Stabilkan identitas objek: refresh tiap 3 dtk membuat objek baru,
       // tanpa ini timer suara KK di-reset terus dan tak pernah bunyi
       const nid = latestKK ? latestKK.id : null
@@ -205,6 +209,12 @@ export default function Display() {
 
   const current = slides[slide % slides.length]
 
+  // Gambar istirahat: tampil terus di panel kiri selama jam istirahat.
+  // `now` berdetak tiap detik sehingga muncul/hilang tepat waktu tanpa refresh.
+  // Panel kanan (kartu antrean), banner & ticker tetap jalan seperti biasa.
+  const inRest = useMemo(() => isRestNow(rest, now), [rest, now])
+  const restRange = rest ? `${String(rest.start || '').replace(':', '.')}–${String(rest.end || '').replace(':', '.')}` : ''
+
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-[#eef2f7] text-slate-900 flex flex-col">
       {/* Header */}
@@ -251,9 +261,24 @@ export default function Display() {
 
       {/* Body */}
       <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_400px] gap-4 p-3 md:p-4 overflow-hidden">
-        {/* Kiri: slideshow informasi */}
-        <div className={`bg-[#0f1b33] text-white rounded-2xl flex flex-col min-h-0 overflow-hidden relative ${current?.kind === 'photo' ? '' : 'p-4 md:p-6'}`}>
-          {current?.kind === 'photo' ? (
+        {/* Kiri: slideshow informasi (diganti gambar istirahat selama jam istirahat) */}
+        <div className={`bg-[#0f1b33] text-white rounded-2xl flex flex-col min-h-0 overflow-hidden relative ${inRest || current?.kind !== 'photo' ? 'p-4 md:p-6' : ''}`}>
+          {inRest ? (
+          <>
+          <div className="text-center shrink-0">
+            <div className="text-[11px] font-bold tracking-[0.18em] text-orange-300">INFORMASI</div>
+            <div className="text-lg md:text-xl font-extrabold mt-1">Istirahat {restRange} WITA</div>
+          </div>
+          <div className="mt-3 flex-1 min-h-0 overflow-hidden flex items-center justify-center">
+            <img
+              src={imageUrl(rest.image)}
+              alt="Informasi istirahat pelayanan"
+              className="max-h-full max-w-full object-contain rounded-3xl"
+            />
+          </div>
+          <div className="text-center text-slate-300 text-sm md:text-base mt-3 shrink-0">Pelayanan kembali pukul {String(rest.end || '').replace(':', '.')} WITA</div>
+          </>
+          ) : current?.kind === 'photo' ? (
             // Foto tunggal (alur): tanpa teks sama sekali, gambar utuh tanpa crop —
             // panel tetap terisi penuh via latar blur dari gambar yang sama.
             // Gambar depan diberi jeda + sudut melengkung agar tidak terpotong

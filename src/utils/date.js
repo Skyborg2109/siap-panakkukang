@@ -29,6 +29,28 @@ export function makeQueueNumber(prefix, seq) {
   return `${prefix}-${Number(seq)}`
 }
 
+// "HH:MM" → menit sejak tengah malam (null bila format tak valid)
+export function timeToMinutes(t) {
+  const m = String(t || '').match(/^(\d{1,2}):(\d{2})/)
+  if (!m) return null
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (h > 23 || min > 59) return null
+  return h * 60 + min
+}
+
+// true bila saat ini masuk jam istirahat { enabled, start, end, image }.
+// Mendukung rentang lewat tengah malam (mis. 22:00–06:00).
+export function isRestNow(rest, d = new Date()) {
+  if (!rest || rest.enabled === false) return false
+  if (!rest.image) return false
+  const s = timeToMinutes(rest.start)
+  const e = timeToMinutes(rest.end)
+  if (s == null || e == null || s === e) return false
+  const cur = d.getHours() * 60 + d.getMinutes()
+  return s < e ? (cur >= s && cur < e) : (cur >= s || cur < e)
+}
+
 export function timeDiffLabel(from, to = new Date()) {
   const a = new Date(from).getTime()
   const b = new Date(to).getTime()

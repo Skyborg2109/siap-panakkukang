@@ -11,7 +11,7 @@ import {
 } from '../../services/queueService.js'
 import { getServices } from '../../services/masterService.js'
 import { callKKCase, sendBroadcast } from '../../services/displayService.js'
-import { quotaFor, isNameCallService } from '../../lib/constants.js'
+import { quotaFor, isNameCallService, isSingleCallService } from '../../lib/constants.js'
 import { hasRealName, getTodayResetAt } from '../../utils/queue.js'
 import { Modal, Field } from '../../components/ui/ui.jsx'
 
@@ -238,6 +238,11 @@ export default function PetugasQueue() {
   // Panggil nomor kupon langsung + nama warga opsional (satu nomor).
   // Beberapa nomor sekaligus: pisah koma ("5,6,7") atau rentang ("5-8") —
   // dibuatkan sesuai kupon berurutan menaik lalu dipanggil serentak.
+  // Anti-menumpuk: nomor BARU tidak bisa dipanggil selama layanan ini masih
+  // punya nomor aktif (CALLED/SERVING) — selesaikan (Selesai) atau lewati
+  // (Berikutnya) dulu. Panggil ulang nomor yang sudah aktif tetap diizinkan
+  // (semua nomor yang diminta sudah aktif = recall via chip).
+  // KTP & Perekaman KTP: satu nomor per panggilan (isSingleCallService).
   // Perekaman KTP: panggil berbasis nama — nama wajib & satu nama per panggilan.
   const handleDirect = async (e) => {
     e.preventDefault()
@@ -245,12 +250,26 @@ export default function PetugasQueue() {
     // specFail: tampilkan di dalam modal (selalu terlihat) + banner global
     const specFail = (msg) => { setSpecErr(msg); flash(msg, 'warn') }
     if (!svc || !specificNum.trim()) return specFail('Masukkan nomor antrean.')
+    let numbers
+    try {
+      numbers = parseQueueNumbers(svc, specificNum)
+    } catch (err) { return specFail(errText(err)) }
     const nameCall = isNameCallService(svc)
+    if (nameCall && numbers.length > 1) return specFail('Perekaman KTP dipanggil satu nama per panggilan — masukkan satu nomor saja.')
+    if (numbers.length > 1 && isSingleCallService(svc)) return specFail(`${svc.prefix || svc.name} hanya satu nomor per panggilan — masukkan satu nomor saja.`)
     if (nameCall) {
       if (directName.trim().length < 3) return specFail('Untuk Perekaman KTP, nama wajib diisi (minimal 3 huruf) — nama yang tampil di monitor & diumumkan.')
-      try {
-        if (parseQueueNumbers(svc, specificNum).length > 1) return specFail('Perekaman KTP dipanggil satu nama per panggilan — masukkan satu nomor saja.')
-      } catch (err) { return specFail(errText(err)) }
+    }
+    // Blokir nomor baru selama masih ada nomor aktif di layanan ini —
+    // cegah penumpukan (mis. KTP-13..KTP-22 aktif bersamaan).
+    const actives = activeByService[svc.id] || []
+    if (actives.length > 0) {
+      const activeNums = new Set(actives.map((q) => String(q.number || '').toUpperCase()))
+      const hasNew = numbers.some((n) => !activeNums.has(String(n).toUpperCase()))
+      if (hasNew) {
+        const label = [...actives].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)).map((q) => q.number).join(', ')
+        return specFail(`Masih ada nomor aktif (${label}). Selesaikan (Selesai) atau lewati (Berikutnya) dulu sebelum memanggil nomor baru.`)
+      }
     }
     setSpecErr(null)
     setBusy(`direct-${svc.id}`)
@@ -306,6 +325,11 @@ export default function PetugasQueue() {
     try { await withTimeout(resetToday(), 20000); await refresh() } catch (e) { flash(errText(e), 'warn') }
     finally { setBusy(null) }
   }
+
+  // Nomor aktif di layanan yang modal "Panggil Nomor"-nya sedang terbuka —
+  // untuk peringatan anti-menumpuk di dalam modal.
+  const specActives = specOpen ? (activeByService[specOpen.id] || []) : []
+  const specActivesLabel = [...specActives].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)).map((q) => q.number).join(', ')
 
   return (
     <DashboardLayout
@@ -385,6 +409,14 @@ export default function PetugasQueue() {
                                 {q.number}
                               </span>
                             ))}
+                            {actives.length > 10 && (
+                              <span
+                                title={`${actives.length - 10} nomor aktif lainnya — selesaikan antrean agar tidak menumpuk`}
+                                className="rounded-lg border border-dashed border-slate-300 px-2.5 py-1.5 text-[13px] font-bold text-slate-500"
+                              >
+                                +{actives.length - 10} lainnya
+                              </span>
+                            )}
                           </div>
                         </>
                       ) : isNameCallService(svc) && hasRealName(target.name) ? (
@@ -517,6 +549,11 @@ export default function PetugasQueue() {
           <p className="text-sm text-slate-500">Satu nomor (cth: {specOpen ? `${specOpen.prefix}-5` : 'KTP-5'} atau cukup 5) atau beberapa sekaligus: pisahkan dengan koma (cth: 5,6,7) atau rentang (cth: 5-8, maks 10 nomor). Nomor yang belum terdaftar dibuat otomatis lalu dipanggil serentak. Nomor mana pun boleh dipanggil langsung, termasuk yang terlewati.</p>
           {specOpen && isNameCallService(specOpen) && (
             <p className="text-sm font-semibold text-blue-700">Perekaman KTP dipanggil berbasis nama: nama di bawah yang tampil di monitor & diumumkan via audio (satu nama per panggilan).</p>
+          )}
+          {specActives.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] font-semibold text-amber-800">
+              Masih aktif: {specActivesLabel} — selesaikan (Selesai) / lewati (Berikutnya) dulu untuk memanggil nomor baru. Nomor aktif yang sama tetap bisa dipanggil ulang.
+            </div>
           )}
           {specErr && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-[13px] font-semibold text-rose-700">{specErr}</div>

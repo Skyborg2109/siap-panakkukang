@@ -110,6 +110,23 @@ export function isNameCallService(serviceOrPrefix) {
   return nm.includes('rekam')
 }
 
+// Layanan satu-nomor: KTP & Perekaman KTP — satu panggilan = satu nomor,
+// dan nomor baru tidak boleh dipanggil selama masih ada nomor aktif.
+// (Mencegah penumpukan belasan nomor aktif bersamaan seperti KTP-13..KTP-22.)
+// IKD/KKO/KKB tetap boleh batch serentak dari kondisi idle ("5,6,7").
+export const SINGLE_CALL_PREFIXES = ['KTP', 'REKAM']
+
+export function isSingleCallService(serviceOrPrefix) {
+  // Perekaman KTP (name-call) selalu satu-nomor
+  if (isNameCallService(serviceOrPrefix)) return true
+  const obj = typeof serviceOrPrefix === 'string' ? {} : serviceOrPrefix || {}
+  const p = String(typeof serviceOrPrefix === 'string' ? serviceOrPrefix : obj.prefix || '').toUpperCase()
+  if (SINGLE_CALL_PREFIXES.includes(p) || p.startsWith('KTP')) return true
+  // Fallback via nama layanan (bila prefix tak dikenal / kosong)
+  const nm = String(obj.service_name || obj.name || '').toLowerCase()
+  return nm.includes('ktp')
+}
+
 export const SEED_INFORMATION = [
   { id: 'info-1', title: 'Jam Pelayanan', category: 'umum', content: 'Senin–Kamis: 08.00–14.00 WITA\nJumat: 08.00–11.30 WITA\nSabtu–Minggu & libur nasional: TUTUP', is_active: true },
   { id: 'info-2', title: 'Alur Pelayanan', category: 'alur', content: '1. Datang ke ruang pelayanan dan lapor ke petugas\n2. Tunggu hingga nomor antrean Anda dipanggil\n3. Serahkan berkas & verifikasi\n4. Terima dokumen / surat keterangan', is_active: true },

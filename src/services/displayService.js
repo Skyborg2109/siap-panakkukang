@@ -61,6 +61,77 @@ export async function deleteDisplayImage(id, filePath) {
   return true
 }
 
+// ---- Gambar informasi istirahat (tampil di Display TV selama jam istirahat) ----
+// Disimpan sebagai SATU baris display_contents key='rest' (tanpa migrasi DB):
+// content = JSON { enabled, start "HH:MM", end "HH:MM", image }.
+// image = path Storage (prod) / base64 / http — resolve via imageUrl().
+const REST_KEY = 'siap_rest'
+
+export function defaultRestConfig() {
+  return { enabled: false, start: '12:00', end: '13:00', image: '' }
+}
+
+export async function getRestConfig() {
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase.from('display_contents').select('*').eq('key', 'rest').maybeSingle()
+    if (error) throw error
+    if (!data) return defaultRestConfig()
+    try {
+      return { ...defaultRestConfig(), ...JSON.parse(data.content || '{}') }
+    } catch {
+      return defaultRestConfig()
+    }
+  }
+  try {
+    const raw = localStorage.getItem(REST_KEY)
+    if (raw) return { ...defaultRestConfig(), ...JSON.parse(raw) }
+  } catch { /* abaikan */ }
+  return defaultRestConfig()
+}
+
+export async function saveRestConfig(payload) {
+  const value = {
+    enabled: payload.enabled !== false,
+    start: String(payload.start || '12:00'),
+    end: String(payload.end || '13:00'),
+    image: String(payload.image || ''),
+  }
+  if (isSupabaseConfigured) {
+    await assertSupabaseSession()
+    const { error } = await supabase.from('display_contents').upsert({ key: 'rest', title: 'Gambar Istirahat', content: JSON.stringify(value) })
+    if (error) throw friendlySupabaseError(error)
+    return value
+  }
+  localStorage.setItem(REST_KEY, JSON.stringify(value))
+  window.dispatchEvent(new Event('siap:master-changed'))
+  return value
+}
+
+// Upload gambar istirahat: prod → Storage display-images path rest/... (publik,
+// tanpa baris display_images agar tak kena check kategori); demo → base64.
+export async function uploadRestImage({ file, base64 }) {
+  if (isSupabaseConfigured) {
+    await assertSupabaseSession()
+    if (!file) throw new Error('Pilih file gambar dulu.')
+    const path = `rest/${Date.now()}-${file.name}`
+    const { error } = await supabase.storage.from('display-images').upload(path, file)
+    if (error) throw new Error(`Upload Storage gagal: ${error.message}`)
+    return path
+  }
+  if (!base64) throw new Error('Pilih file gambar dulu.')
+  return base64
+}
+
+export async function deleteRestImage(filePath) {
+  if (isSupabaseConfigured) {
+    if (filePath && !filePath.startsWith('http') && !filePath.startsWith('data:')) {
+      await supabase.storage.from('display-images').remove([filePath])
+    }
+    return true
+  }
+  return true
+}
+
 // KK terbaru hari ini untuk Display TV (banner + audio)
 export async function getLatestKK() {
   if (isSupabaseConfigured) {
