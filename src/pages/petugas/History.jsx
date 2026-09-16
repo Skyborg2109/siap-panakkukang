@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { History, LayoutDashboard, Settings } from 'lucide-react'
 import { DashboardLayout } from '../../layouts/layouts.jsx'
 import { getHistory } from '../../services/queueService.js'
+import { getServices } from '../../services/masterService.js'
 import { Badge, Empty } from '../../components/ui/ui.jsx'
 import { formatDateID, formatTime, todayKey } from '../../utils/date.js'
 
@@ -14,6 +15,8 @@ const menu = [
 export default function PetugasHistory() {
   const [rows, setRows] = useState([])
   const [filter, setFilter] = useState('')
+  const [serviceFilter, setServiceFilter] = useState('')
+  const [services, setServices] = useState([])
   const [date, setDate] = useState(todayKey())
   const [loading, setLoading] = useState(true)
 
@@ -22,7 +25,11 @@ export default function PetugasHistory() {
     getHistory({ date }).then(setRows).catch(() => {}).finally(() => setLoading(false))
   }, [date])
 
-  const list = filter ? rows.filter((r) => r.status === filter) : rows
+  useEffect(() => {
+    getServices().then(setServices).catch(() => {})
+  }, [])
+
+  const list = rows.filter((r) => (!filter || r.status === filter) && (!serviceFilter || r.service_id === serviceFilter))
   const isToday = date === todayKey()
 
   return (
@@ -37,6 +44,12 @@ export default function PetugasHistory() {
             onChange={(e) => { if (e.target.value) setDate(e.target.value) }}
             title="Filter hari"
           />
+          <select className="input !w-auto" value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)} title="Filter jenis layanan">
+            <option value="">Semua layanan</option>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>{s.prefix ? `${s.prefix} — ${s.name}` : s.name}</option>
+            ))}
+          </select>
           <select className="input !w-auto" value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="">Semua status</option>
             <option value="WAITING">Menunggu</option>
