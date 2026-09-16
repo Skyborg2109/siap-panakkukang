@@ -290,6 +290,37 @@ revoke all on function public.call_direct_number(uuid, int, text, timestamptz, d
 grant execute on function public.call_direct_number(uuid, int, text, timestamptz, date) to authenticated;
 grant execute on function public.current_role() to anon, authenticated;
 
+-- RPC: update_own_name — ubah nama tampilan sendiri (halaman Profil).
+-- SECURITY DEFINER agar petugas bisa ubah full_name miliknya TANPA policy
+-- UPDATE terbuka di profiles (policy terbuka memungkinkan eskalasi role
+-- ADMIN via console). Hanya kolom full_name yang disentuh.
+create or replace function public.update_own_name(p_name text)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_name text := btrim(coalesce(p_name, ''));
+  v_row public.profiles%rowtype;
+begin
+  if v_name = '' then
+    raise exception 'Nama tidak boleh kosong.';
+  end if;
+  if char_length(v_name) > 60 then
+    raise exception 'Nama maksimal 60 karakter.';
+  end if;
+  update public.profiles set full_name = v_name where id = auth.uid()
+  returning * into v_row;
+  if not found then
+    raise exception 'Profil tidak ditemukan.';
+  end if;
+  return v_row;
+end;
+$$;
+revoke all on function public.update_own_name(text) from public;
+grant execute on function public.update_own_name(text) to authenticated;
+
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================

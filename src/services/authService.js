@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured, assertSupabaseSession } from '../lib/supabase.js'
+import { supabase, isSupabaseConfigured, assertSupabaseSession, friendlySupabaseError } from '../lib/supabase.js'
 import { DEMO_USERS } from '../lib/constants.js'
 
 function saveSession(user) {
@@ -20,6 +20,30 @@ export function clearSession() {
   localStorage.removeItem('siap_session')
 }
 
+// Override profil akun demo bawaan (hasil edit di halaman Profil).
+// Akun bawaan hidup di constants (tak bisa diubah) sehingga edit nama /
+// password-nya disimpan di sini, keyed by user id. Entri lama tak dikenal
+// diabaikan.
+const LS_OVERRIDES = 'siap_profile_overrides'
+
+function readOverrides() {
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_OVERRIDES) || '{}')
+    return o && typeof o === 'object' ? o : {}
+  } catch {
+    return {}
+  }
+}
+
+function withOverride(demoUser) {
+  const o = readOverrides()[demoUser.id] || {}
+  return {
+    ...demoUser,
+    name: o.full_name || demoUser.name,
+    password: o.password || demoUser.password,
+  }
+}
+
 export async function login(email, password) {
   const e = email.trim().toLowerCase()
   if (isSupabaseConfigured) {
@@ -35,9 +59,10 @@ export async function login(email, password) {
     saveSession(user)
     return user
   }
-  const found = DEMO_USERS.find((u) => u.email === e && u.password === password)
+  const found = DEMO_USERS.find((u) => u.email === e && withOverride(u).password === password)
   if (found) {
-    const user = { id: found.id, email: found.email, name: found.name, role: found.role, counter_id: null, counter_name: null }
+    const eff = withOverride(found)
+    const user = { id: eff.id, email: eff.email, name: eff.name, role: eff.role, counter_id: null, counter_name: null }
     saveSession(user)
     return user
   }
@@ -64,7 +89,7 @@ export async function getUsers() {
     return data
   }
   const custom = JSON.parse(localStorage.getItem('siap_users') || '[]')
-  return [...custom, ...DEMO_USERS.map((u) => ({ id: u.id, email: u.email, full_name: u.name, role: u.role, demo: true }))]
+  return [...custom, ...DEMO_USERS.map((u) => ({ id: u.id, email: u.email, full_name: withOverride(u).name, role: u.role, demo: true }))]
 }
 
 export async function createUser(payload) {
@@ -140,4 +165,51 @@ export async function deleteUser(id) {
   localStorage.setItem('siap_users', JSON.stringify(custom.filter((u) => u.id !== id)))
   window.dispatchEvent(new Event('siap:master-changed'))
   return true
+}
+
+// Akun sendiri: ubah nama tampilan (+ password baru opsional). Email & role
+// read-only (ganti email butuh verifikasi Auth; role hanya via Kelola Pengguna
+// agar tak ada self-lockout / eskalasi). Mengembalikan user sesi terbaru.
+export async function updateMyAccount({ name, newPassword }) {
+  const cleanName = String(name || '').trim()
+  const pw = newPassword ? String(newPassword) : ''
+  if (!cleanName) throw new Error('Nama tidak boleh kosong.')
+  if (cleanName.length > 60) throw new Error('Nama maksimal 60 karakter.')
+  if (pw && pw.length < 6) throw new Error('Password baru minimal 6 karakter.')
+  const current = getSession()
+  if (!current) throw new Error('Sesi login berakhir. Silakan login ulang.')
+  if (isSupabaseConfigured) {
+    await assertSupabaseSession()
+    if (pw) {
+      const { error } = await supabase.auth.updateUser({ password: pw })
+      if (error) throw new Error(`Gagal mengganti password: ${error.message}`)
+    }
+    // Nama via RPC SECURITY DEFINER (petugas tak punya policy UPDATE profiles).
+    const { data, error } = await supabase.rpc('update_own_name', { p_name: cleanName })
+    if (error) {
+      if (error.code === '42883' || /could not find the function|schema cache/i.test(error.message || '')) {
+        throw new Error('Fungsi database belum tersedia — jalankan supabase/schema.sql terbaru di SQL Editor, lalu coba lagi.')
+      }
+      throw friendlySupabaseError(error)
+    }
+    const row = Array.isArray(data) ? data[0] : data
+    const user = { ...current, name: row?.full_name || cleanName }
+    saveSession(user)
+    return user
+  }
+  if (String(current.id || '').startsWith('demo-')) {
+    const ov = readOverrides()
+    ov[current.id] = { ...(ov[current.id] || {}), full_name: cleanName, ...(pw ? { password: pw } : {}) }
+    try {
+      localStorage.setItem(LS_OVERRIDES, JSON.stringify(ov))
+    } catch { /* abaikan */ }
+  } else {
+    const custom = JSON.parse(localStorage.getItem('siap_users') || '[]')
+    const next = custom.map((u) => (u.id === current.id ? { ...u, full_name: cleanName, ...(pw ? { password: pw } : {}) } : u))
+    localStorage.setItem('siap_users', JSON.stringify(next))
+    window.dispatchEvent(new Event('siap:master-changed'))
+  }
+  const user = { ...current, name: cleanName }
+  saveSession(user)
+  return user
 }
