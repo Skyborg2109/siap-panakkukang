@@ -7,24 +7,6 @@ import { callDestination, isNameCallService } from '../lib/constants.js'
 const OPENING_SOUND = `${import.meta.env.BASE_URL}opening sound.mp3`
 const CLOSING_SOUND = `${import.meta.env.BASE_URL}closing sound.mp3`
 
-// Putar file audio hingga selesai (resolve langsung bila gagal)
-function playFile(src, volume = 1) {
-  return new Promise((resolve) => {
-    try {
-      const a = new Audio(encodeURI(src))
-      a.volume = volume
-      let done = false
-      const finish = () => { if (!done) { done = true; resolve() } }
-      a.onended = finish
-      a.onerror = finish
-      a.play().catch(finish)
-      setTimeout(finish, 15000)
-    } catch {
-      resolve()
-    }
-  })
-}
-
 // Web Speech API — prioritas suara perempuan Bahasa Indonesia
 export function useSpeech() {
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
@@ -78,14 +60,61 @@ export function useSpeech() {
     return () => clearInterval(t)
   }, [supported, enabled])
 
+  // Elemen <audio> jingle yang sedang berbunyi. speechSynthesis.cancel()
+  // TIDAK menghentikan <audio> — tanpa ini, opening generasi baru menimpa
+  // closing/opening generasi lama (tumpang suara).
+  const jingleRef = useRef(null)
+  // Nomor generasi rangkaian pengumuman: generasi baru membatalkan sisa
+  // rangkaian lama (dideklarasikan di atas agar pemutar jingle bisa ikut
+  // memeriksa generasinya).
+  const callSeq = useRef(0)
+  const stopJingle = useCallback(() => {
+    try {
+      if (jingleRef.current) {
+        jingleRef.current.onended = null
+        jingleRef.current.onerror = null
+        jingleRef.current.pause()
+      }
+    } catch { /* abaikan */ }
+    jingleRef.current = null
+  }, [])
+
+  // Putar file jingle hingga selesai (resolve langsung bila gagal).
+  // Menghentikan jingle sebelumnya dulu agar tidak tumpang suara.
+  const playJingle = useCallback((src) => {
+    stopJingle()
+    return new Promise((resolve) => {
+      try {
+        const a = new Audio(encodeURI(src))
+        a.volume = volume
+        jingleRef.current = a
+        let done = false
+        const finish = () => {
+          if (done) return
+          done = true
+          if (jingleRef.current === a) jingleRef.current = null
+          resolve()
+        }
+        a.onended = finish
+        a.onerror = finish
+        a.play().catch(finish)
+        setTimeout(finish, 15000)
+      } catch {
+        resolve()
+      }
+    })
+  }, [stopJingle, volume])
+
   const toggle = useCallback(() => {
     setEnabled((v) => {
       try { localStorage.setItem('siap_tts', v ? 'off' : 'on') } catch { /* abaikan */ }
-      if (v) window.speechSynthesis?.cancel()
+      // Mematikan suara menghentikan SEMUA yang sedang berbunyi — speech
+      // maupun file jingle (cancel() saja tidak menghentikan <audio>).
+      if (v) { try { window.speechSynthesis?.cancel() } catch { /* abaikan */ } stopJingle() }
       else wake()
       return !v
     })
-  }, [wake])
+  }, [wake, stopJingle])
 
   const pickVoice = useCallback(() => {
     if (!voices.length) return null
@@ -118,19 +147,20 @@ export function useSpeech() {
     })
   }, [enabled, supported, pickVoice, volume])
 
-  // Ucapkan 2x dengan jeda pendek agar panggilan lebih jelas terdengar
+  // Ucapkan 2x dengan jeda pendek agar panggilan lebih jelas terdengar.
+  // Rangkaian yang dimatikan di tengah jalan mati diam-diam (tanpa onDone)
+  // agar TIDAK memicu closing sound setelah suara dimatikan.
   const speakRepeat = useCallback((text, times = 2, onDone) => {
     if (!enabled || !supported) {
-      if (onDone) onDone()
       return
     }
     window.speechSynthesis.cancel()
     window.speechSynthesis.resume()
     settle().then(() => {
-      if (!enabled) { if (onDone) onDone(); return }
+      if (!enabled) return
       let n = 0
       const say = () => {
-        if (!enabled) { if (onDone) onDone(); return }
+        if (!enabled) return
         if (n >= times) {
           if (onDone) onDone()
           return
@@ -164,21 +194,32 @@ export function useSpeech() {
   }, [enabled, supported, pickVoice, volume])
 
   // Rangkaian penuh: opening → pengumuman 2x → closing.
-  // Generasi baru membatalkan rangkaian lama agar panggilan tak bertumpuk.
-  const callSeq = useRef(0)
+  // Generasi baru membatalkan rangkaian lama (speech di-cancel + jingle
+  // dihentikan) agar panggilan tak bertumpuk. Closing hanya bunyi bila mesin
+  // suara benar-benar sunyi — jangan sampai closing menimpa sisa pengumuman
+  // yang masih berbunyi (mis. onend hilang / timer pengaman yang kecepetan).
   const announceWithJingle = useCallback((text) => {
     if (!enabled || !supported) return
     const my = ++callSeq.current
     const alive = () => callSeq.current === my
+    stopJingle()
     window.speechSynthesis.cancel()
     window.speechSynthesis.resume()
-    playFile(OPENING_SOUND, volume).then(() => {
+    playJingle(OPENING_SOUND).then(() => {
       if (!alive()) return
       speakRepeat(text, 2, () => {
-        if (alive()) playFile(CLOSING_SOUND, volume)
+        if (!alive()) return
+        // Tahan sejenak lalu pastikan sunyi dulu sebelum closing.
+        setTimeout(() => {
+          if (!alive()) return
+          try {
+            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return
+          } catch { /* abaikan — lanjut bunyikan closing */ }
+          playJingle(CLOSING_SOUND)
+        }, 400)
       })
     })
-  }, [enabled, supported, speakRepeat, volume])
+  }, [enabled, supported, speakRepeat, stopJingle, playJingle])
 
   const announceQueue = useCallback((queue) => {
     if (!queue) return

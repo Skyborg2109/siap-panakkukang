@@ -61,6 +61,24 @@ export async function deleteDisplayImage(id, filePath) {
   return true
 }
 
+// Ubah judul/deskripsi gambar tanpa upload ulang (dipakai tombol Ubah di
+// halaman admin — mis. mengisi jadwal operasional di bawah gambar logo).
+export async function updateDisplayImage(id, payload) {
+  const patch = {}
+  if (payload.title !== undefined) { patch.title = payload.title; patch.name = payload.title }
+  if (payload.description !== undefined) patch.description = payload.description
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase.from('display_images').update(patch).eq('id', id).select().single()
+    if (error) throw error
+    return { ...data, url: imageUrl(data.file_path) }
+  }
+  const all = JSON.parse(localStorage.getItem('siap_display_images') || '[]')
+  const next = all.map((x) => (x.id === id ? { ...x, ...patch } : x))
+  localStorage.setItem('siap_display_images', JSON.stringify(next))
+  window.dispatchEvent(new Event('siap:master-changed'))
+  return next.find((x) => x.id === id)
+}
+
 // ---- Gambar informasi istirahat (tampil di Display TV selama jam istirahat) ----
 // Disimpan sebagai SATU baris display_contents key='rest' (tanpa migrasi DB):
 // content = JSON { enabled, start "HH:MM", end "HH:MM", image }.

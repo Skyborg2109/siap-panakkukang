@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase.js'
+import { supabase, isSupabaseConfigured, assertSupabaseSession } from '../lib/supabase.js'
 import { DEMO_USERS } from '../lib/constants.js'
 
 function saveSession(user) {
@@ -36,10 +36,19 @@ export async function login(email, password) {
     return user
   }
   const found = DEMO_USERS.find((u) => u.email === e && u.password === password)
-  if (!found) throw new Error('Email atau password salah. Coba admin@panakkukang.go.id / admin123')
-  const user = { id: found.id, email: found.email, name: found.name, role: found.role, counter_id: null, counter_name: null }
-  saveSession(user)
-  return user
+  if (found) {
+    const user = { id: found.id, email: found.email, name: found.name, role: found.role, counter_id: null, counter_name: null }
+    saveSession(user)
+    return user
+  }
+  // User custom yang dibuat via Tambah Pengguna (demo) — password tersimpan
+  // di siap_users sejak perbaikan (entri lama tanpa password tetap ditolak).
+  const custom = JSON.parse(localStorage.getItem('siap_users') || '[]')
+  const hit = custom.find((u) => String(u.email || '').toLowerCase() === e && u.password && u.password === password)
+  if (!hit) throw new Error('Email atau password salah. Coba admin@panakkukang.go.id / admin123')
+  const cu = { id: hit.id, email: hit.email, name: hit.full_name || hit.email, role: String(hit.role || 'PETUGAS').toUpperCase(), counter_id: null, counter_name: null }
+  saveSession(cu)
+  return cu
 }
 
 export async function logout() {
@@ -60,17 +69,62 @@ export async function getUsers() {
 
 export async function createUser(payload) {
   if (isSupabaseConfigured) {
-    // Admin membuat user via signUp lalu insert profile (disederhanakan: insert profile; user auth dibuat manual/Supabase dashboard)
-    const { data, error } = await supabase.from('profiles').insert({
-      email: payload.email,
-      full_name: payload.name,
-      role: payload.role,
-    }).select().single()
-    if (error) throw error
-    return data
+    // Prod satu-klik: buat user Auth via signUp + insert baris profiles
+    // dengan UID yang dikembalikan (profiles.id FK ke auth.users, tanpa
+    // default — tak bisa dibuat tanpa UID). Tanpa Edge Function + service_role
+    // key, signUp adalah satu-satunya cara client-side membuat auth user.
+    // signUp MENIMPA sesi lokal dengan user baru bila konfirmasi email MATI —
+    // sesi admin disimpan dulu dan dikembalikan setelahnya agar admin tidak
+    // ter-logout. Bila konfirmasi email NYALA, sesi tak berubah tapi user baru
+    // wajib klik link verifikasi di inbox sebelum bisa login.
+    const name = String(payload.name || '').trim()
+    const email = String(payload.email || '').trim().toLowerCase()
+    const password = String(payload.password || '')
+    const role = String(payload.role || 'PETUGAS').trim().toUpperCase()
+    if (!name) throw new Error('Nama wajib diisi.')
+    if (!email) throw new Error('Email wajib diisi.')
+    if (password.length < 6) throw new Error('Password minimal 6 karakter.')
+    if (!['ADMIN', 'PETUGAS'].includes(role)) throw new Error('Role harus ADMIN / PETUGAS.')
+    await assertSupabaseSession()
+    let adminSession = null
+    try {
+      adminSession = (await supabase.auth.getSession()).data?.session || null
+    } catch { /* abaikan */ }
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name } },
+      })
+      if (error) {
+        if (/already registered|already been registered|already exists/i.test(error.message || '')) {
+          throw new Error('Email ini sudah terdaftar di Authentication. Gunakan email lain, atau hapus user lama di Supabase Dashboard → Authentication → Users.')
+        }
+        throw new Error(`Gagal membuat user Auth: ${error.message}`)
+      }
+      const uid = data?.user?.id
+      if (!uid) throw new Error('Pendaftaran tidak mengembalikan user baru — email mungkin sudah terdaftar. Cek Authentication di dashboard.')
+      // Kembalikan sesi admin DULU agar insert profiles lolos RLS admin.
+      try {
+        if (adminSession) await supabase.auth.setSession({ access_token: adminSession.access_token, refresh_token: adminSession.refresh_token })
+      } catch { /* abaikan — admin cukup login ulang bila gagal */ }
+      const { data: profile, error: pErr } = await supabase.from('profiles').insert({
+        id: uid, email, full_name: name, role,
+      }).select().single()
+      if (pErr) {
+        if (pErr.code === '23505') throw new Error('Profil untuk email ini sudah ada di tabel profiles.')
+        throw pErr
+      }
+      return profile
+    } finally {
+      // Pastikan sesi admin kembali (signUp tanpa konfirmasi email menimpa sesi lokal).
+      try {
+        if (adminSession) await supabase.auth.setSession({ access_token: adminSession.access_token, refresh_token: adminSession.refresh_token })
+      } catch { /* abaikan */ }
+    }
   }
   const custom = JSON.parse(localStorage.getItem('siap_users') || '[]')
-  const item = { id: `u-${Date.now()}`, email: payload.email, full_name: payload.name, role: payload.role }
+  const item = { id: `u-${Date.now()}`, email: String(payload.email || '').trim().toLowerCase(), full_name: payload.name, role: payload.role, password: payload.password || '' }
   localStorage.setItem('siap_users', JSON.stringify([item, ...custom]))
   window.dispatchEvent(new Event('siap:master-changed'))
   return item

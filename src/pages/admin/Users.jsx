@@ -14,7 +14,8 @@ export default function AdminUsers() {
 
   const save = async (e) => {
     e.preventDefault()
-    if (!form.name || !form.email) return alert('Nama & email wajib diisi.')
+    if (!form.name.trim() || !form.email.trim()) return alert('Nama & email wajib diisi.')
+    if (!form.password || form.password.length < 6) return alert('Password minimal 6 karakter.')
     try {
       await createUser({ ...form })
       setOpen(false); setForm({ name: '', email: '', password: '', role: 'PETUGAS' }); load()
@@ -26,7 +27,7 @@ export default function AdminUsers() {
     <AdminShell title="Kelola Pengguna" subtitle="Admin & petugas pelayanan (role disimpan di profiles)">
       {!isSupabaseConfigured && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-3">
-          Mode Demo: akun demo bawaan tidak bisa dihapus. Buat user baru untuk simulasi — tersimpan di browser (localStorage). Setelah Supabase dikonfigurasi, buat user Auth di Supabase Dashboard lalu tambah profilnya di sini.
+          Mode Demo: akun demo bawaan tidak bisa dihapus. User baru tersimpan di browser (localStorage) dan langsung bisa dipakai login.
         </div>
       )}
       <div className="card">
@@ -56,7 +57,8 @@ export default function AdminUsers() {
         <form onSubmit={save} className="space-y-3">
           <Field label="Nama Lengkap *"><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <Field label="Email *"><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-          {isSupabaseConfigured && <p className="text-xs text-slate-500">Buat juga user Auth dengan email yang sama di Supabase Dashboard → Authentication → Add User, agar bisa login.</p>}
+          <Field label="Password * (min. 6 karakter)"><input type="password" className="input" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Password awal untuk login" /></Field>
+          {isSupabaseConfigured && <p className="text-xs text-slate-500">User langsung dibuat (akun login + profil) dan bisa langsung dipakai login — tanpa buka Supabase Dashboard. Catatan: bila konfirmasi email AKTIF di project (Authentication → Settings), user baru wajib klik link verifikasi di inbox sebelum bisa login.</p>}
           <Field label="Role"><select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="PETUGAS">PETUGAS</option><option value="ADMIN">ADMIN</option></select></Field>
           <button className="btn-primary w-full">Simpan</button>
         </form>

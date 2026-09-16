@@ -386,8 +386,10 @@ export default function Display() {
                         className="max-h-full max-w-full object-contain rounded-xl"
                       />
                     </div>
-                    <figcaption className="font-bold text-sm md:text-base mt-1.5 truncate max-w-full shrink-0">{im.title || im.name}</figcaption>
-                    {im.description && <div className="text-slate-300 text-xs md:text-sm truncate max-w-full shrink-0">{im.description}</div>}
+                    {!!(im.title || im.name) && (
+                      <figcaption className="font-bold text-sm md:text-base mt-1.5 truncate max-w-full shrink-0">{im.title || im.name}</figcaption>
+                    )}
+                    {!!im.description && <div className="text-slate-300 text-xs md:text-sm mt-1 max-w-full shrink-0 text-center whitespace-pre-line leading-snug line-clamp-4">{String(im.description).replace(/\\n/g, '\n')}</div>}
                   </figure>
                 ))}
               </div>

@@ -110,6 +110,76 @@ export function createLocalQueue({ service, name, nik = '' }) {
   return saveLocalQueue(queue)
 }
 
+// ---- Kunci pemanggilan antar-petugas (anti-tumpang pengumuman) ----
+// Setiap panggilan antrean yang berhasil mencatat {at, by} ke localStorage
+// (sinyal instan antar-tab satu browser). Siapa pun yang menekan tombol
+// panggil dalam jendela cooldown — TERMASUK tab yang memanggil tadi —
+// ditolak dengan notifikasi "coba lagi nanti", karena pengumuman audio
+// (opening → 2x → closing, ±30 dtk) masih berbunyi dan rangkaian TTS baru
+// akan membatalkan (menimpa) yang lama.
+// `by` = id acak per tab (sessionStorage), hanya untuk diagnostik.
+// Pemeriksaan utama ada di panel petugas: kunci instan ini + `called_at`
+// terbaru dari server (lintas perangkat, via polling) — lihat callLockMsg.
+const LS_CALL_LOCK = 'siap_call_lock'
+export const CALL_LOCK_SECONDS = 30
+
+function tabId() {
+  try {
+    let id = sessionStorage.getItem('siap_tab_id')
+    if (!id) {
+      id = `tab-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+      sessionStorage.setItem('siap_tab_id', id)
+    }
+    return id
+  } catch { return 'tab-unknown' }
+}
+
+export function markCallLock() {
+  try {
+    localStorage.setItem(LS_CALL_LOCK, JSON.stringify({ at: new Date().toISOString(), by: tabId() }))
+  } catch { /* abaikan */ }
+}
+
+// Gabungan dua sinyal kunci dalam sisa detik (0 = bebas), diambil yang
+// terpanjang: kunci instan localStorage (antar-tab satu browser, real-time)
+// + `called_at` terbaru baris CALLED/SERVING (lintas perangkat via polling;
+// buta maks ~3 dtk + selisih jam perangkat). Dipisah sebagai fungsi murni
+// modul (tanpa Date.now di badan render) agar lolos aturan react/purity.
+export function callLockRemaining(rows = []) {
+  let remaining = 0
+  const lock = otherCallInProgress()
+  if (lock) remaining = Math.max(remaining, lock.remainingSec)
+  const now = Date.now()
+  let latest = 0
+  for (const q of rows || []) {
+    if (q?.status !== 'CALLED' && q?.status !== 'SERVING') continue
+    const t = new Date(q.called_at || q.created_at || 0).getTime()
+    if (Number.isFinite(t) && t > latest) latest = t
+  }
+  if (latest) {
+    const ageSec = (now - latest) / 1000
+    if (ageSec >= 0 && ageSec < CALL_LOCK_SECONDS) {
+      remaining = Math.max(remaining, Math.max(1, Math.ceil(CALL_LOCK_SECONDS - ageSec)))
+    }
+  }
+  return remaining
+}
+
+// Sisa cooldown (detik) kunci instan bila ada panggilan APAPUN yang masih
+// dalam jendela — termasuk dari tab sendiri; null bila bebas. Kedaluwarsa
+// otomatis lewat timestamp sehingga tidak ada macet permanen.
+export function otherCallInProgress() {
+  try {
+    const raw = localStorage.getItem(LS_CALL_LOCK)
+    if (!raw) return null
+    const lock = JSON.parse(raw)
+    if (!lock || !lock.at) return null
+    const ageSec = (Date.now() - new Date(lock.at).getTime()) / 1000
+    if (!(ageSec >= 0) || ageSec >= CALL_LOCK_SECONDS) return null
+    return { remainingSec: Math.max(1, Math.ceil(CALL_LOCK_SECONDS - ageSec)) }
+  } catch { return null }
+}
+
 // Nama kosong / placeholder "Tanpa Nama" (kupon dipanggil tanpa input nama)
 // → perlakukan sebagai tanpa nama (voice + display cukup sebut nomor)
 export function hasRealName(name) {
