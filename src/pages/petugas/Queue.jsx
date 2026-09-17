@@ -851,7 +851,7 @@ export default function PetugasQueue() {
             <input className="input" value={kkName} onChange={(e) => setKkName(e.target.value)} placeholder="cth: Budi Santoso" />
           </Field>
           <Field label="Catatan">
-            <textarea className="input" rows={3} value={kkNote} onChange={(e) => setKkNote(e.target.value)} placeholder="Berkas belum lengkap, silakan masuk ke ruang pelayanan…" />
+            <textarea className="input" rows={3} value={kkNote} onChange={(e) => setKkNote(e.target.value)} placeholder="Berkas belum lengkap, silakan masuk ke Ruang Operator…" />
           </Field>
           <button className="btn-warning w-full"><Megaphone size={16} /> Kirim ke Display + Audio</button>
         </form>

@@ -224,7 +224,7 @@ export function useSpeech() {
   const announceQueue = useCallback((queue) => {
     if (!queue) return
     const num = String(queue.number || '').replace('-', ' ')
-    // KK Online / KK Biasa → loket pelayanan; KTP / REKAM / IKD → ruang pelayanan
+    // KK Online / KK Biasa → loket pelayanan; KTP / REKAM / IKD → Ruang Operator
     const tujuan = queue.counter_name ? `, silakan menuju ${queue.counter_name}` : `, ${callDestination(queue)}`
     // Perekaman KTP: panggil berbasis nama ("Panggilan atas nama X, ..."), bukan nomor
     if (isNameCallService(queue) && hasRealName(queue.name)) {

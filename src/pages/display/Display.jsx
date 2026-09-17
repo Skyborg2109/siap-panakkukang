@@ -465,7 +465,7 @@ export default function Display() {
               )}
               {called && (
                 <div className="shrink-0 border-t border-slate-100 mt-2 lg:mt-[1cqh] pt-2 lg:pt-[1cqh] text-sm lg:text-[8.5cqh] tabular-nums leading-snug">
-                  <span className="font-semibold text-orange-700">{isLoketService(service) ? 'Silakan maju ke depan loket pelayanan' : 'Sedang Dilayani di Ruang Pelayanan'}</span>
+                  <span className="font-semibold text-orange-700">{isLoketService(service) ? 'Silakan maju ke depan loket pelayanan' : 'Sedang Dilayani di Ruang Operator'}</span>
                 </div>
               )}
             </div>

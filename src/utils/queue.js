@@ -187,14 +187,14 @@ export function hasRealName(name) {
   return nm !== '' && nm.toLowerCase() !== 'tanpa nama'
 }
 
-// Teks panggilan KK: catatan + tujuan ruang pelayanan.
+// Teks panggilan KK: catatan + tujuan Ruang Operator.
 // Tanpa duplikasi bila catatan sudah menyebut tujuannya sendiri.
 export function kkCallNote(note, counterName) {
   const n = String(note || '').trim().replace(/[.]+$/, '')
-  const tujuan = counterName ? `silakan menuju ${counterName}` : 'silakan masuk ke ruang pelayanan'
-  if (!n) return 'silakan masuk ke ruang pelayanan untuk konsultasi ulang'
+  const tujuan = counterName ? `silakan menuju ${counterName}` : 'silakan masuk ke Ruang Operator'
+  if (!n) return 'silakan masuk ke Ruang Operator untuk konsultasi ulang'
   const low = n.toLowerCase()
-  if (low.includes('ruang pelayanan') || low.includes('menuju ')) return n
+  if (low.includes('ruang operator') || low.includes('ruang pelayanan') || low.includes('menuju ')) return n
   return `${n}, ${tujuan}`
 }
 
@@ -208,7 +208,7 @@ export function addLocalKK({ name, note }) {
   const item = {
     id: `kk-${Date.now()}`,
     name,
-    note: note || 'Berkas belum lengkap, silakan masuk ke ruang pelayanan untuk konsultasi ulang.',
+    note: note || 'Berkas belum lengkap, silakan masuk ke Ruang Operator untuk konsultasi ulang.',
     created_at: new Date().toISOString(),
   }
   all.unshift(item)

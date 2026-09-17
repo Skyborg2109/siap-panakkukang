@@ -187,7 +187,18 @@ export async function updateMyAccount({ name, newPassword }) {
     // Nama via RPC SECURITY DEFINER (petugas tak punya policy UPDATE profiles).
     const { data, error } = await supabase.rpc('update_own_name', { p_name: cleanName })
     if (error) {
-      if (error.code === '42883' || /could not find the function|schema cache/i.test(error.message || '')) {
+      const missingFn = error.code === '42883' || /could not find the function|schema cache/i.test(error.message || '')
+      // Fallback khusus ADMIN bila fungsi belum ada: update langsung tetap
+      // lolos RLS policy admin. Petugas wajib schema terbaru (tanpa ini ada
+      // celah eskalasi role, jadi tanpa fallback).
+      if (missingFn && current.role === 'ADMIN') {
+        const { data: direct, error: dErr } = await supabase.from('profiles').update({ full_name: cleanName }).eq('id', current.id).select().single()
+        if (dErr) throw friendlySupabaseError(dErr)
+        const adminUser = { ...current, name: direct?.full_name || cleanName }
+        saveSession(adminUser)
+        return adminUser
+      }
+      if (missingFn) {
         throw new Error('Fungsi database belum tersedia — jalankan supabase/schema.sql terbaru di SQL Editor, lalu coba lagi.')
       }
       throw friendlySupabaseError(error)

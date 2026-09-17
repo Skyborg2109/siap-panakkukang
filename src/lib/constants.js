@@ -76,7 +76,7 @@ export const SEED_REQUIREMENTS = [
 ]
 
 // Tujuan pemanggilan: hanya KK Online & KK Biasa yang dilayani di loket
-// (maju ke depan loket); KTP-el, REKAM & IKD masuk ke ruang pelayanan.
+// (maju ke depan loket); KTP-el, REKAM & IKD masuk ke Ruang Operator.
 // Deteksi pola (bukan daftar prefix kaku) agar tetap benar walau admin
 // membuat prefix varian sendiri, mis. KKONLINE / KKBISA / KK.
 export const LOKET_PREFIXES = ['KKO', 'KKB']
@@ -86,14 +86,14 @@ export function isLoketService(serviceOrPrefix) {
   const p = String(typeof serviceOrPrefix === 'string' ? serviceOrPrefix : obj.prefix || '').toUpperCase()
   if (LOKET_PREFIXES.includes(p) || (p.startsWith('KK') && p.length > 0)) return true
   // Fallback via nama layanan (bila prefix tak dikenal / kosong):
-  // hanya yang berbau KK yang ke loket — sisanya (termasuk KTP) ke ruang pelayanan.
+  // hanya yang berbau KK yang ke loket — sisanya (termasuk KTP) ke Ruang Operator.
   const nm = String(obj.service_name || obj.name || '').toLowerCase()
   return nm.includes('kk')
 }
 
 // Frasa tujuan lengkap untuk TTS + Display (tanpa koma depan)
 export function callDestination(serviceOrPrefix) {
-  return isLoketService(serviceOrPrefix) ? 'silakan maju ke depan loket pelayanan' : 'silakan masuk ke ruang pelayanan'
+  return isLoketService(serviceOrPrefix) ? 'silakan maju ke depan loket pelayanan' : 'silakan masuk ke Ruang Operator'
 }
 
 // Layanan yang dipanggil berbasis NAMA, bukan nomor antrean (Perekaman KTP:
