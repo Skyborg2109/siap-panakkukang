@@ -438,14 +438,30 @@ export default function PetugasQueue() {
     if (e && e.preventDefault) e.preventDefault()
     setRestSaving(true)
     try {
-      let image = rest.image
-      if (restFile || (restPreview && restPreview.startsWith('data:'))) {
-        const path = await withTimeout(uploadRestImage({ file: restFile, base64: restPreview }), 20000)
-        // Ganti file lama di Storage agar tak menumpuk (abaikan bila gagal)
-        if (isSupabaseConfigured && image && image !== path) deleteRestImage(image).catch(() => {})
-        image = path
+      // Gambar istirahat bersifat permanen (cukup upload 1x): pakai gambar
+      // tersimpan bila petugas tidak memilih file baru. Ambil ulang dari
+      // server sebagai fallback agar simpan cepat sebelum load awal selesai
+      // tidak menimpa image yang sudah ada menjadi kosong.
+      const localImage = String(rest.image || '').trim()
+      let serverImage = ''
+      if (!localImage) {
+        try {
+          const cur = await withTimeout(getRestConfig(), 20000)
+          serverImage = String(cur?.image || '').trim()
+          if (serverImage) setRest((r) => (r.image ? r : { ...r, image: serverImage }))
+        } catch { /* abaikan, validasi di bawah yang bicara */ }
       }
-      if (!image) return flash('Pilih file gambar istirahat dulu.', 'warn')
+      const storedImage = localImage || serverImage
+      // Hanya upload bila ada file BARU yang dipilih — selain itu gambar
+      // lama tetap dipakai (tidak perlu upload ulang setiap ganti jam).
+      let uploadedPath = ''
+      if (restFile) {
+        uploadedPath = await withTimeout(uploadRestImage({ file: restFile, base64: restPreview }), 20000)
+        // Ganti file lama di Storage agar tak menumpuk (abaikan bila gagal)
+        if (isSupabaseConfigured && storedImage && storedImage !== uploadedPath) deleteRestImage(storedImage).catch(() => {})
+      }
+      const image = uploadedPath || storedImage
+      if (!image) return flash('Pilih file gambar istirahat dulu (cukup 1x — selanjutnya tersimpan permanen).', 'warn')
       const saved = await withTimeout(saveRestConfig({ ...rest, image }), 20000)
       setRest(saved)
       setRestFile(null)
@@ -724,7 +740,7 @@ export default function PetugasQueue() {
                 {restShowing ? 'Sedang tampil di TV' : rest.enabled ? 'Terjadwal' : 'Nonaktif'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">Gambar ini menggantikan slideshow kiri Display TV selama jam istirahat (panel antrean & ticker tetap jalan).</p>
+            <p className="text-xs text-slate-500 mt-1">Cukup upload gambar 1x — gambar tersimpan permanen dan otomatis tampil di Display TV setiap hari pada jam istirahat (panel antrean & ticker tetap jalan).</p>
             <form onSubmit={handleRestSave} className="space-y-2.5 mt-3">
               <Field label="Status">
                 <select className="input" value={rest.enabled ? '1' : '0'} onChange={(e) => setRest({ ...rest, enabled: e.target.value === '1' })}>
@@ -736,7 +752,16 @@ export default function PetugasQueue() {
                 <Field label="Jam Mulai"><input type="time" className="input" value={rest.start} onChange={(e) => setRest({ ...rest, start: e.target.value })} /></Field>
                 <Field label="Jam Selesai"><input type="time" className="input" value={rest.end} onChange={(e) => setRest({ ...rest, end: e.target.value })} /></Field>
               </div>
-              <Field label={`Gambar (maks ${maxRestMB}MB)`}><input key={restKey} type="file" accept="image/*" onChange={onRestFile} className="input" /></Field>
+              <Field label={rest.image && !restFile ? `Ganti gambar (opsional — kosongkan bila tetap pakai yang tersimpan, maks ${maxRestMB}MB)` : `Gambar (maks ${maxRestMB}MB)`}><input key={restKey} type="file" accept="image/*" onChange={onRestFile} className="input" /></Field>
+              {rest.image && !restFile && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-semibold text-emerald-700">✓ Gambar tersimpan — tidak perlu upload ulang. Ganti jam lalu Simpan saja.</div>
+              )}
+              {restFile && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
+                  Gambar baru dipilih — klik Simpan untuk mengganti yang tersimpan.
+                  <button type="button" onClick={() => { setRestFile(null); restFileRef.current = null; setRestPreview(rest.image ? imageUrl(rest.image) : ''); setRestKey((k) => k + 1) }} className="ml-2 underline font-bold">Batalkan</button>
+                </div>
+              )}
               {restPreview && <img src={restPreview} alt="pratinjau istirahat" className="rounded-xl max-h-40 mx-auto" />}
               <button disabled={restSaving} className="btn-primary w-full !py-2.5 !rounded-lg !text-[13px]">{restSaving ? 'Menyimpan…' : 'Simpan Notifikasi Istirahat'}</button>
             </form>

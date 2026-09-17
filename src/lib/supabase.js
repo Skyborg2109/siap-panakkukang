@@ -33,5 +33,15 @@ export function friendlySupabaseError(error, fallback = 'Operasi database gagal.
   if (code === 'PGRST116' || /cannot coerce/i.test(msg)) {
     return new Error('Data tidak ditemukan atau akses ditolak. Kemungkinan sesi login kedaluwarsa — logout lalu login ulang sebagai petugas. Bila berlanjut, pastikan akun terdaftar di tabel profiles dengan role PETUGAS/ADMIN dan schema.sql terbaru sudah dijalankan.')
   }
+  // 42501: RLS menolak (insert/update/delete). Kasus paling sering:
+  // petugas mengaktifkan Notifikasi Istirahat tapi policy
+  // "staff manage rest content" belum ada di database prod
+  // (schema.sql lama) — hanya ADMIN yang lolos policy "admin all contents".
+  if (code === '42501' || /row-level security/i.test(msg)) {
+    if (/display_contents/i.test(msg)) {
+      return new Error('Akses ditolak untuk notifikasi istirahat (RLS display_contents). Database memakai schema lama — jalankan schema.sql terbaru di Supabase SQL Editor (policy "staff manage rest content" + Storage rest/*) lalu logout/login ulang sebagai petugas.')
+    }
+    return new Error('Akses database ditolak (RLS). Kemungkinan schema.sql belum dijalankan ulang — logout lalu login ulang, bila berlanjut jalankan schema.sql terbaru di Supabase SQL Editor.')
+  }
   return error
 }
