@@ -63,15 +63,35 @@ export async function deleteDisplayImage(id, filePath) {
 
 // Ubah judul/deskripsi gambar tanpa upload ulang (dipakai tombol Ubah di
 // halaman admin — mis. mengisi jadwal operasional di bawah gambar logo).
+// Opsional ganti foto: sertakan { file, base64 } — prod upload File baru ke
+// Storage lalu hapus file lama, demo timpa file_path/url dengan base64.
 export async function updateDisplayImage(id, payload) {
   const patch = {}
   if (payload.title !== undefined) { patch.title = payload.title; patch.name = payload.title }
   if (payload.description !== undefined) patch.description = payload.description
+  const newFile = payload.file || null
+  const newBase64 = payload.base64 || ''
   if (isSupabaseConfigured) {
+    let oldPath = ''
+    if (newFile) {
+      // Ambil kategori + path lama: path baru menumpang kategori yang sama
+      const { data: existing, error: fetchErr } = await supabase.from('display_images').select('file_path,category').eq('id', id).single()
+      if (fetchErr) throw fetchErr
+      const path = `${existing?.category || 'lainnya'}/${Date.now()}-${newFile.name}`
+      const { error: upErr } = await supabase.storage.from('display-images').upload(path, newFile)
+      if (upErr) throw new Error(`Upload Storage gagal: ${upErr.message}`)
+      patch.file_path = path
+      oldPath = existing?.file_path || ''
+    }
     const { data, error } = await supabase.from('display_images').update(patch).eq('id', id).select().single()
     if (error) throw error
+    // Bersihkan file lama agar Storage tidak menumpuk (abaikan bila gagal)
+    if (newFile && oldPath && oldPath !== patch.file_path && !oldPath.startsWith('http') && !oldPath.startsWith('data:')) {
+      try { await supabase.storage.from('display-images').remove([oldPath]) } catch { /* abaikan */ }
+    }
     return { ...data, url: imageUrl(data.file_path) }
   }
+  if (newBase64) { patch.file_path = newBase64; patch.url = newBase64 }
   const all = JSON.parse(localStorage.getItem('siap_display_images') || '[]')
   const next = all.map((x) => (x.id === id ? { ...x, ...patch } : x))
   localStorage.setItem('siap_display_images', JSON.stringify(next))

@@ -31,18 +31,38 @@ export default function AdminDisplay() {
   const load = () => getAllDisplayImages().then(setRows).catch(() => {})
   useEffect(() => { load() }, [])
 
-  // Ubah judul/deskripsi tanpa upload ulang (mis. isi jadwal operasional
-  // di bawah gambar logo kecamatan — tampil multi-baris di Display TV)
+  // Ubah judul/deskripsi + opsional ganti foto tanpa tambah baris baru
+  // (mis. isi jadwal operasional di bawah gambar logo kecamatan —
+  // tampil multi-baris di Display TV)
   const [editImg, setEditImg] = useState(null)
   const [editSaving, setEditSaving] = useState(false)
-  const openEdit = (img) => setEditImg({ id: img.id, title: img.title || img.name || '', description: img.description || '' })
+  const [editFile, setEditFile] = useState(null)
+  const [editPreview, setEditPreview] = useState('')
+  const [editFileKey, setEditFileKey] = useState(0)
+  const openEdit = (img) => {
+    setEditImg({ id: img.id, title: img.title || img.name || '', description: img.description || '', url: img.url || img.file_path || '' })
+    setEditFile(null); setEditPreview(''); setEditFileKey((k) => k + 1)
+  }
+  const closeEdit = () => { setEditImg(null); setEditFile(null); setEditPreview('') }
+  const onEditFile = (e) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (f.size > maxMB * 1024 * 1024) return alert(`Maksimal ${maxMB}MB.`)
+    setEditFile(f)
+    const r = new FileReader()
+    r.onload = () => setEditPreview(r.result)
+    r.readAsDataURL(f)
+  }
   const saveEdit = async (e) => {
     e.preventDefault()
     if (!editImg) return
     setEditSaving(true)
     try {
-      await updateDisplayImage(editImg.id, { title: editImg.title.trim(), description: editImg.description.trim() })
-      setEditImg(null); load()
+      await updateDisplayImage(editImg.id, {
+        title: editImg.title.trim(), description: editImg.description.trim(),
+        ...(editFile ? { file: editFile, base64: editPreview } : {}),
+      })
+      closeEdit(); load()
     } catch (err) { alert(err.message) }
     finally { setEditSaving(false) }
   }
@@ -122,9 +142,13 @@ export default function AdminDisplay() {
           ))}
         </div>
       </div>
-      {/* Modal ubah judul/deskripsi */}
-      <Modal open={!!editImg} onClose={() => setEditImg(null)} title="Ubah Keterangan Gambar">
+      {/* Modal ubah foto + judul/deskripsi */}
+      <Modal open={!!editImg} onClose={closeEdit} title="Ubah Gambar & Keterangan">
         <form onSubmit={saveEdit} className="space-y-3">
+          {(editPreview || editImg?.url) && (
+            <img src={editPreview || editImg?.url} alt="foto saat ini" className="rounded-xl max-h-40 mx-auto bg-slate-100" />
+          )}
+          <Field label={`Ganti Foto (opsional, maks ${maxMB}MB${isSupabaseConfigured ? '' : ' demo'})`}><input key={editFileKey} type="file" accept="image/*" onChange={onEditFile} className="input" /></Field>
           <Field label="Nama / Judul"><input className="input" value={editImg?.title || ''} onChange={(e) => setEditImg({ ...editImg, title: e.target.value })} placeholder="cth: Logo Kecamatan Panakkukang" /></Field>
           <Field label="Jabatan / Deskripsi (mendukung beberapa baris — tampil di bawah gambar pada Display TV)">
             <textarea className="input" rows={4} value={editImg?.description || ''} onChange={(e) => setEditImg({ ...editImg, description: e.target.value })} placeholder={'cth jadwal operasional:\nSenin–Kamis: 08.00–14.00\nJumat: 08.00–11.30'} />
