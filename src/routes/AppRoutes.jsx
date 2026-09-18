@@ -11,7 +11,6 @@ import PetugasProfile from '../pages/petugas/Profile.jsx'
 import AdminDashboard from '../pages/admin/Dashboard.jsx'
 import AdminServices from '../pages/admin/Services.jsx'
 import AdminUsers from '../pages/admin/Users.jsx'
-import AdminInformation from '../pages/admin/Information.jsx'
 import AdminAnnouncements from '../pages/admin/Announcements.jsx'
 import AdminDisplay from '../pages/admin/DisplayImages.jsx'
 import AdminStatistics from '../pages/admin/Statistics.jsx'
@@ -42,7 +41,6 @@ export default function AppRoutes() {
       <Route path="/admin" element={<RequireAuth roles={['ADMIN']}><AdminDashboard /></RequireAuth>} />
       <Route path="/admin/services" element={<RequireAuth roles={['ADMIN']}><AdminServices /></RequireAuth>} />
       <Route path="/admin/users" element={<RequireAuth roles={['ADMIN']}><AdminUsers /></RequireAuth>} />
-      <Route path="/admin/information" element={<RequireAuth roles={['ADMIN']}><AdminInformation /></RequireAuth>} />
       <Route path="/admin/announcements" element={<RequireAuth roles={['ADMIN']}><AdminAnnouncements /></RequireAuth>} />
       <Route path="/admin/display" element={<RequireAuth roles={['ADMIN']}><AdminDisplay /></RequireAuth>} />
       <Route path="/admin/statistics" element={<RequireAuth roles={['ADMIN']}><AdminStatistics /></RequireAuth>} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { MonitorPlay, LogOut, ExternalLink, Menu, X } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore.js'
 import { logout } from '../services/authService.js'
@@ -8,6 +8,8 @@ import { logout } from '../services/authService.js'
 // export const LOGO_KECAMATAN = '/logo-kecamatan-panakkukang.png'
 export const LOGO_MAKASSAR = `${import.meta.env.BASE_URL}logo-kota-makassar.png`
 export const LOGO_KECAMATAN = `${import.meta.env.BASE_URL}logo-kecamatan-panakkukang.png`
+export const LOGO_UNDIPA = `${import.meta.env.BASE_URL}Logo-Undipa.png`
+export const BG_KANTOR = `${import.meta.env.BASE_URL}bg-kantor.jpeg`
 
 export function GovLogos({ className = 'h-10', divider = false }) {
   return (
@@ -16,6 +18,27 @@ export function GovLogos({ className = 'h-10', divider = false }) {
       {divider && <span aria-hidden="true" className="w-px self-stretch bg-slate-300/80" />}
       <img src={LOGO_KECAMATAN} alt="Logo Kecamatan Panakkukang" className={`${className} w-auto object-contain shrink-0`} />
     </>
+  )
+}
+
+// Efek blur-in per karakter (adaptasi BlurInText framer-motion ke CSS murni:
+// opacity 0 + blur(10px) → jernih, delay 0.05s/karakter).
+// Looping per 8 detik: fade-in → tampil utuh ±3 detik → fade-out → ulangi.
+// Dibuat tanpa dependensi baru agar tetap plain JSX + Vite.
+function BlurInText({ text = 'KKL UNDIPA GEL XIII 2026', className = '', delayStep = 0.05, duration = 8 }) {
+  return (
+    <span className={className} aria-label={text}>
+      {text.split('').map((char, i) => (
+        <span
+          key={i}
+          aria-hidden="true"
+          className="blur-in-char-loop"
+          style={{ animationDelay: `${i * delayStep}s`, animationDuration: `${duration}s` }}
+        >
+          {char === ' ' ? ' ' : char}
+        </span>
+      ))}
+    </span>
   )
 }
 
@@ -97,10 +120,17 @@ function UserCard() {
 }
 
 // ---------- Dashboard (petugas & admin) ----------
-export function DashboardLayout({ children, menu, title, subtitle, eyebrow = 'PEMERINTAH KOTA MAKASSAR' }) {
+export function DashboardLayout({ children, menu, title, subtitle }) {
   const quickLinks = [{ to: '/display', label: 'Monitor Antrean', external: true }]
   const mainMenu = (menu || []).filter((m) => m.to !== '/display')
   const [open, setOpen] = useState(false)
+
+  // Judul top bar mengikuti nama halaman di sidebar yang sedang aktif —
+  // prop `title` hanya jadi fallback bila rute tak ada di menu.
+  const { pathname } = useLocation()
+  const normPath = (p) => (p && p.length > 1 ? p.replace(/\/+$/, '') : p)
+  const activeItem = (menu || []).find((m) => normPath(m.to) === normPath(pathname))
+  const displayTitle = activeItem?.label || title || 'Dashboard'
 
   // Drawer mobile: tutup via Escape + kunci scroll body saat terbuka
   useEffect(() => {
@@ -159,14 +189,20 @@ export function DashboardLayout({ children, menu, title, subtitle, eyebrow = 'PE
         </div>
       </aside>
       <div className="flex-1 min-w-0 min-h-screen">
-        <div className="bg-white border-b border-slate-200/80 px-5 md:px-7 py-3.5 flex items-start gap-3 no-print">
+        <div className="bg-white border-b border-slate-200/80 px-5 md:px-7 py-3.5 flex items-center gap-3 no-print">
           <button onClick={() => setOpen(true)} aria-label="Buka menu" className="md:hidden p-2 -ml-2 mt-0.5 rounded-lg text-slate-700 hover:bg-slate-100 shrink-0">
             <Menu size={20} />
           </button>
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-bold tracking-wider text-orange-600">{eyebrow}</div>
-            <h1 className="text-lg font-extrabold text-slate-900 leading-tight">{title}</h1>
+            <h1 className="text-lg font-extrabold text-slate-900 leading-tight">{displayTitle}</h1>
             {subtitle && <p className="text-[13px] text-slate-500 mt-0.5">{subtitle}</p>}
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="text-right leading-tight">
+              <BlurInText text="KKL UNDIPA GEL XIII 2026" className="text-[10px] md:text-xs font-extrabold tracking-wide text-slate-800 whitespace-nowrap" />
+            </div>
+            <span aria-hidden="true" className="blur-in-loop w-px self-stretch bg-slate-300/80" />
+            <img src={LOGO_UNDIPA} alt="Logo KKL Undipa" className="blur-in-loop h-9 md:h-10 w-auto object-contain" />
           </div>
         </div>
         <div className="p-4 md:p-6">{children}</div>

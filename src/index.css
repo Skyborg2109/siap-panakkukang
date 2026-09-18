@@ -70,6 +70,44 @@ body {
   animation: slide-in 0.4s ease-out;
 }
 
+/* Blur-in per karakter untuk teks KKL di top bar (adaptasi dari
+   framer-motion BlurInText: opacity 0 + blur(10px) → jernih,
+   delay 0.05s per karakter, durasi 0.8s ease-out). */
+@keyframes blur-in {
+  from { opacity: 0; filter: blur(10px); }
+  to { opacity: 1; filter: blur(0px); }
+}
+.blur-in-char {
+  display: inline-block;
+  opacity: 0;
+  animation: blur-in 0.8s ease-out forwards;
+}
+
+/* Varian looping dengan jeda: fade-in → TAHAN tampil utuh beberapa
+   detik → fade-out blur → tahan hilang sebentar → fade-in lagi.
+   100% dibuat sama dengan 0% agar perulangan mulus tanpa lompatan.
+   Delay per karakter tetap jadi offset fase sehingga efek gelombang
+   teks ikut berulang setiap siklus. */
+@keyframes blur-hold-loop {
+  0% { opacity: 0; filter: blur(10px); }
+  6% { opacity: 1; filter: blur(0px); }
+  56% { opacity: 1; filter: blur(0px); }
+  68% { opacity: 0; filter: blur(10px); }
+  92% { opacity: 0; filter: blur(10px); }
+  100% { opacity: 0; filter: blur(10px); }
+}
+.blur-in-char-loop {
+  display: inline-block;
+  opacity: 0;
+  animation: blur-hold-loop 8s ease-in-out infinite;
+}
+
+/* Animasi blur yang sama untuk logo kampus, satu siklus dengan teks. */
+.blur-in-loop {
+  opacity: 0;
+  animation: blur-hold-loop 8s ease-in-out infinite;
+}
+
 @media print {
   .no-print { display: none !important; }
   body { background: white; }

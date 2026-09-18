@@ -94,7 +94,7 @@ export default function Login() {
       <footer className="bg-white border-t border-slate-200 text-xs text-slate-500">
         <div className="max-w-6xl mx-auto px-4 py-3.5 flex flex-col sm:flex-row gap-1 sm:items-center justify-between">
           <div>© 2026 Kantor Kecamatan Panakkukang, Kota Makassar.</div>
-          <div>Jl. Batu Raya No. 1, Panakkukang, Makassar, Sulawesi Selatan</div>
+          <div>Jl. Batu Raya No. 168, Panakkukang, Makassar, Sulawesi Selatan</div>
         </div>
       </footer>
     </div>

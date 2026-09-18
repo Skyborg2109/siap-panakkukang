@@ -4,7 +4,7 @@ import { getTodayQueueList } from '../../services/queueService.js'
 import { getAnnouncements, getServices } from '../../services/masterService.js'
 import { getDisplayImages, getLatestKK, getLatestBroadcast, getRestConfig, imageUrl } from '../../services/displayService.js'
 import { useSpeech, useClock } from '../../hooks/hooks.js'
-import { GovLogos } from '../../layouts/layouts.jsx'
+import { GovLogos, BG_KANTOR } from '../../layouts/layouts.jsx'
 import { formatClock, formatDateFull } from '../utils-imports.js'
 import { isRestNow } from '../../utils/date.js'
 import { hasRealName, kkCallNote } from '../../utils/queue.js'
@@ -324,6 +324,15 @@ export default function Display() {
           onMouseLeave={() => { clearTimeout(navTimer.current); setNavOn(false) }}
           onTouchStart={pokeNav}
         >
+          {/* BG foto kantor di balik panel informasi + overlay gelap agar
+              teks & foto slide tetap terbaca. */}
+          <img
+            src={BG_KANTOR}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+          />
+          <div className="absolute inset-0 bg-[#0f1b33]/70 pointer-events-none" />
           {inRest ? (
           <div key="rest" className="animate-slide-in absolute inset-0 overflow-hidden">
             <img
