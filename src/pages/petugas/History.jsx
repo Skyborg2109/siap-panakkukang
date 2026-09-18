@@ -1,16 +1,10 @@
 import { useEffect, useState } from 'react'
-import { History, LayoutDashboard, Settings } from 'lucide-react'
 import { DashboardLayout } from '../../layouts/layouts.jsx'
+import { petugasMenu as menu } from './petugasMenu.jsx'
 import { getHistory } from '../../services/queueService.js'
 import { getServices } from '../../services/masterService.js'
 import { Badge, Empty } from '../../components/ui/ui.jsx'
 import { formatDateID, formatTime, todayKey } from '../../utils/date.js'
-
-const menu = [
-  { to: '/petugas/queue', label: 'Panel Pelayanan', icon: <LayoutDashboard size={17} /> },
-  { to: '/petugas/history', label: 'Riwayat Hari Ini', icon: <History size={17} /> },
-  { to: '/petugas/profile', label: 'Pengaturan Profil', icon: <Settings size={17} /> },
-]
 
 export default function PetugasHistory() {
   const [rows, setRows] = useState([])

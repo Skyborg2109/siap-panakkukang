@@ -6,7 +6,7 @@ import { getDisplayImages, getLatestKK, getLatestBroadcast, getRestConfig, image
 import { useSpeech, useClock } from '../../hooks/hooks.js'
 import { GovLogos, BG_KANTOR } from '../../layouts/layouts.jsx'
 import { formatClock, formatDateFull } from '../utils-imports.js'
-import { isRestNow } from '../../utils/date.js'
+import { isRestNow, activeRestSchedule } from '../../utils/date.js'
 import { hasRealName, kkCallNote } from '../../utils/queue.js'
 import { isLoketService, isNameCallService } from '../../lib/constants.js'
 
@@ -267,7 +267,12 @@ export default function Display() {
   // (tanpa teks — semua info sudah ada di gambarnya), cukup dot slideshow.
   // `now` berdetak tiap detik sehingga muncul/hilang tepat waktu tanpa refresh.
   // Panel kanan (kartu antrean), banner & ticker tetap jalan seperti biasa.
+  // Gambar mengikuti jadwal yang berlaku hari itu (Jumat bisa gambar sendiri).
   const inRest = useMemo(() => isRestNow(rest, now), [rest, now])
+  const restImg = useMemo(() => {
+    const img = activeRestSchedule(rest, now).image
+    return img ? imageUrl(img) : ''
+  }, [rest, now])
 
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-[#eef2f7] text-slate-900 flex flex-col">
@@ -336,14 +341,14 @@ export default function Display() {
           {inRest ? (
           <div key="rest" className="animate-slide-in absolute inset-0 overflow-hidden">
             <img
-              src={imageUrl(rest.image)}
+              src={restImg}
               alt=""
               aria-hidden="true"
               className="absolute inset-0 h-full w-full object-cover blur-2xl scale-110 opacity-60"
             />
             <div className="absolute inset-0 p-3 md:p-4 flex items-center justify-center">
               <img
-                src={imageUrl(rest.image)}
+                src={restImg}
                 alt="Informasi istirahat pelayanan"
                 className="max-h-full max-w-full object-contain rounded-3xl"
               />

@@ -6,6 +6,7 @@ import Login from '../pages/auth/Login.jsx'
 
 import PetugasQueue from '../pages/petugas/Queue.jsx'
 import PetugasHistory from '../pages/petugas/History.jsx'
+import PetugasRest from '../pages/petugas/Rest.jsx'
 import PetugasProfile from '../pages/petugas/Profile.jsx'
 
 import AdminDashboard from '../pages/admin/Dashboard.jsx'
@@ -36,6 +37,7 @@ export default function AppRoutes() {
       <Route path="/petugas" element={<Navigate to="/petugas/queue" replace />} />
       <Route path="/petugas/queue" element={<RequireAuth roles={['PETUGAS', 'ADMIN']}><PetugasQueue /></RequireAuth>} />
       <Route path="/petugas/history" element={<RequireAuth roles={['PETUGAS', 'ADMIN']}><PetugasHistory /></RequireAuth>} />
+      <Route path="/petugas/rest" element={<RequireAuth roles={['PETUGAS', 'ADMIN']}><PetugasRest /></RequireAuth>} />
       <Route path="/petugas/profile" element={<RequireAuth roles={['PETUGAS', 'ADMIN']}><PetugasProfile /></RequireAuth>} />
 
       <Route path="/admin" element={<RequireAuth roles={['ADMIN']}><AdminDashboard /></RequireAuth>} />

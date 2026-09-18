@@ -1,27 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  LayoutDashboard, History, Settings, Search,
+  Search,
   Volume2, Check, ChevronsRight, FileText, RotateCcw, Pencil, Megaphone,
 } from 'lucide-react'
 import { DashboardLayout } from '../../layouts/layouts.jsx'
+import { petugasMenu as menu } from './petugasMenu.jsx'
 import {
   getTodayQueueList, skipQueue,
   completeQueue, setStatus, resetToday, callDirect, callDirectMany, callNext,
   parseQueueNumbers,
 } from '../../services/queueService.js'
 import { getServices } from '../../services/masterService.js'
-import { callKKCase, sendBroadcast, getLatestKK, getLatestBroadcast, getRestConfig, saveRestConfig, uploadRestImage, deleteRestImage, getServerResetAt, imageUrl } from '../../services/displayService.js'
-import { isSupabaseConfigured } from '../../lib/supabase.js'
+import { callKKCase, sendBroadcast, getLatestKK, getLatestBroadcast, getServerResetAt } from '../../services/displayService.js'
 import { quotaFor, isNameCallService, isSingleCallService } from '../../lib/constants.js'
 import { hasRealName, getTodayResetAt, markCallLock, callLockRemaining } from '../../utils/queue.js'
-import { isRestNow, makeQueueNumber } from '../../utils/date.js'
+import { makeQueueNumber } from '../../utils/date.js'
 import { Modal, Field } from '../../components/ui/ui.jsx'
-
-const menu = [
-  { to: '/petugas/queue', label: 'Panel Pelayanan', icon: <LayoutDashboard size={17} /> },
-  { to: '/petugas/history', label: 'Riwayat Hari Ini', icon: <History size={17} /> },
-  { to: '/petugas/profile', label: 'Pengaturan Profil', icon: <Settings size={17} /> },
-]
 
 // Warna khas per layanan: KTP oranye, REKAM biru, IKD hijau
 const PALETTE = {
@@ -113,14 +107,6 @@ export default function PetugasQueue() {
   const openSpec = (svc, num = '', name = '') => { dismissNotice(); setSpecOpen(svc); setSpecificNum(num); setDirectName(name); setSpecErr(null); setSpecPending(null) }
   const [editOpen, setEditOpen] = useState(null)
   const [editName, setEditName] = useState('')
-  // Notifikasi istirahat Display TV (gambar + jam tampil) — dikelola dari
-  // panel ini agar petugas jaga bisa menyalakan/mematikan langsung.
-  const [rest, setRest] = useState({ enabled: false, start: '12:00', end: '13:00', image: '' })
-  const [restFile, setRestFile] = useState(null)
-  const [restPreview, setRestPreview] = useState('')
-  const [restKey, setRestKey] = useState(0)
-  const [restSaving, setRestSaving] = useState(false)
-  const restFileRef = useRef(null)
   const [notice, setNotice] = useState(null)
   const noticeTimer = useRef(null)
   // Konfirmasi hasil Selesai/Berikutnya (nomor apa → otomatis memanggil nomor apa)
@@ -185,26 +171,6 @@ export default function PetugasQueue() {
     const t = setInterval(refresh, 3000)
     return () => { clearInterval(t); window.removeEventListener('siap:queues-changed', onCh); window.removeEventListener('storage', onCh) }
   }, [refresh])
-
-  // Muat konfigurasi istirahat sekali saat dibuka (+ saat ada perubahan dari
-  // tab lain). Sengaja TIDAK ikut polling 3 dtk agar ketikan/gambar yang
-  // sedang diubah petugas tidak tertimpa saat mengetik jam.
-  useEffect(() => {
-    let on = true
-    const loadRest = async () => {
-      try {
-        const r = await getRestConfig()
-        if (!on) return
-        setRest(r)
-        if (!restFileRef.current) setRestPreview(r.image ? imageUrl(r.image) : '')
-      } catch { /* abaikan */ }
-    }
-    loadRest()
-    const onMaster = () => loadRest()
-    window.addEventListener('siap:master-changed', onMaster)
-    window.addEventListener('storage', onMaster)
-    return () => { on = false; window.removeEventListener('siap:master-changed', onMaster); window.removeEventListener('storage', onMaster) }
-  }, [])
 
   // Jenis antrean aktif dari master (KTP, Perekaman, IKD, KK Online, KK Biasa, …)
   const visibleServices = services
@@ -463,63 +429,6 @@ export default function PetugasQueue() {
     finally { setBusy(null) }
   }
 
-  const maxRestMB = isSupabaseConfigured ? 5 : 2
-
-  const onRestFile = (e) => {
-    const f = e.target.files?.[0]
-    if (!f) return
-    if (f.size > maxRestMB * 1024 * 1024) return flash(`Gambar maksimal ${maxRestMB}MB.`, 'warn')
-    setRestFile(f)
-    restFileRef.current = f
-    const r = new FileReader()
-    r.onload = () => setRestPreview(r.result)
-    r.readAsDataURL(f)
-  }
-
-  const handleRestSave = async (e) => {
-    if (e && e.preventDefault) e.preventDefault()
-    setRestSaving(true)
-    try {
-      // Gambar istirahat bersifat permanen (cukup upload 1x): pakai gambar
-      // tersimpan bila petugas tidak memilih file baru. Ambil ulang dari
-      // server sebagai fallback agar simpan cepat sebelum load awal selesai
-      // tidak menimpa image yang sudah ada menjadi kosong.
-      const localImage = String(rest.image || '').trim()
-      let serverImage = ''
-      if (!localImage) {
-        try {
-          const cur = await withTimeout(getRestConfig(), 20000)
-          serverImage = String(cur?.image || '').trim()
-          if (serverImage) setRest((r) => (r.image ? r : { ...r, image: serverImage }))
-        } catch { /* abaikan, validasi di bawah yang bicara */ }
-      }
-      const storedImage = localImage || serverImage
-      // Hanya upload bila ada file BARU yang dipilih — selain itu gambar
-      // lama tetap dipakai (tidak perlu upload ulang setiap ganti jam).
-      let uploadedPath = ''
-      if (restFile) {
-        uploadedPath = await withTimeout(uploadRestImage({ file: restFile, base64: restPreview }), 20000)
-        // Ganti file lama di Storage agar tak menumpuk (abaikan bila gagal)
-        if (isSupabaseConfigured && storedImage && storedImage !== uploadedPath) deleteRestImage(storedImage).catch(() => {})
-      }
-      const image = uploadedPath || storedImage
-      if (!image) return flash('Pilih file gambar istirahat dulu (cukup 1x — selanjutnya tersimpan permanen).', 'warn')
-      const saved = await withTimeout(saveRestConfig({ ...rest, image }), 20000)
-      setRest(saved)
-      setRestFile(null)
-      restFileRef.current = null
-      setRestPreview(saved.image ? imageUrl(saved.image) : '')
-      setRestKey((k) => k + 1)
-      flash(saved.enabled
-        ? `Notifikasi istirahat AKTIF (${saved.start}–${saved.end}). Display TV menampilkan gambar istirahat pada jam tersebut.`
-        : 'Notifikasi istirahat dinonaktifkan. Display TV kembali ke slideshow biasa.')
-    } catch (err) { flash(errText(err), 'warn') }
-    finally { setRestSaving(false) }
-  }
-
-  // Status live untuk label kartu (render ulang tiap polling 3 dtk)
-  const restShowing = rest.enabled && rest.image ? isRestNow(rest, new Date()) : false
-
   // Nomor aktif di layanan yang modal "Panggil Nomor"-nya sedang terbuka —
   // untuk peringatan anti-menumpuk di dalam modal.
   const specActives = specOpen ? (activeByService[specOpen.id] || []) : []
@@ -775,39 +684,6 @@ export default function PetugasQueue() {
             >
               <RotateCcw size={15} /> {busy === 'reset' ? 'Mereset…' : 'Reset Antrean Hari Ini'}
             </button>
-          </div>
-          <div className="card p-4 mt-4">
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-bold text-slate-800 flex-1">Notifikasi Istirahat</span>
-              <span className={`badge !text-[10px] ${restShowing ? 'bg-emerald-100 text-emerald-700' : rest.enabled ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-                {restShowing ? 'Sedang tampil di TV' : rest.enabled ? 'Terjadwal' : 'Nonaktif'}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">Cukup upload gambar 1x — gambar tersimpan permanen dan otomatis tampil di Display TV setiap hari pada jam istirahat (panel antrean & ticker tetap jalan).</p>
-            <form onSubmit={handleRestSave} className="space-y-2.5 mt-3">
-              <Field label="Status">
-                <select className="input" value={rest.enabled ? '1' : '0'} onChange={(e) => setRest({ ...rest, enabled: e.target.value === '1' })}>
-                  <option value="1">Aktif</option>
-                  <option value="0">Nonaktif</option>
-                </select>
-              </Field>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Jam Mulai"><input type="time" className="input" value={rest.start} onChange={(e) => setRest({ ...rest, start: e.target.value })} /></Field>
-                <Field label="Jam Selesai"><input type="time" className="input" value={rest.end} onChange={(e) => setRest({ ...rest, end: e.target.value })} /></Field>
-              </div>
-              <Field label={rest.image && !restFile ? `Ganti gambar (opsional — kosongkan bila tetap pakai yang tersimpan, maks ${maxRestMB}MB)` : `Gambar (maks ${maxRestMB}MB)`}><input key={restKey} type="file" accept="image/*" onChange={onRestFile} className="input" /></Field>
-              {rest.image && !restFile && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-semibold text-emerald-700">✓ Gambar tersimpan — tidak perlu upload ulang. Ganti jam lalu Simpan saja.</div>
-              )}
-              {restFile && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
-                  Gambar baru dipilih — klik Simpan untuk mengganti yang tersimpan.
-                  <button type="button" onClick={() => { setRestFile(null); restFileRef.current = null; setRestPreview(rest.image ? imageUrl(rest.image) : ''); setRestKey((k) => k + 1) }} className="ml-2 underline font-bold">Batalkan</button>
-                </div>
-              )}
-              {restPreview && <img src={restPreview} alt="pratinjau istirahat" className="rounded-xl max-h-40 mx-auto" />}
-              <button disabled={restSaving} className="btn-primary w-full !py-2.5 !rounded-lg !text-[13px]">{restSaving ? 'Menyimpan…' : 'Simpan Notifikasi Istirahat'}</button>
-            </form>
           </div>
         </aside>
       </div>

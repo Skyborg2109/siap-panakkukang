@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wrench, Users, Megaphone, Image, BarChart3, Settings } from 'lucide-react'
+import { LayoutDashboard, Wrench, Users, Megaphone, Image, BarChart3, Settings, Coffee } from 'lucide-react'
 import { DashboardLayout } from '../../layouts/layouts.jsx'
 
 export const adminMenu = [
@@ -7,6 +7,7 @@ export const adminMenu = [
   { to: '/admin/users', label: 'Pengguna', icon: <Users size={17} /> },
   { to: '/admin/announcements', label: 'Pengumuman', icon: <Megaphone size={17} /> },
   { to: '/admin/display', label: 'Gambar Display', icon: <Image size={17} /> },
+  { to: '/petugas/rest', label: 'Notifikasi Istirahat', icon: <Coffee size={17} /> },
   { to: '/admin/statistics', label: 'Statistik', icon: <BarChart3 size={17} /> },
   { to: '/petugas/profile', label: 'Profil Saya', icon: <Settings size={17} /> },
 ]

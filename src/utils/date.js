@@ -39,16 +39,44 @@ export function timeToMinutes(t) {
   return h * 60 + min
 }
 
-// true bila saat ini masuk jam istirahat { enabled, start, end, image }.
+// Jadwal istirahat yang berlaku pada tanggal d: hari Jumat (getDay()===5)
+// memakai override `rest.friday` bila ada; Jumat yang dinonaktifkan atau
+// hari lain memakai jadwal harian. Config lama tanpa `friday` aman
+// (fallback harian). Kembalikan { enabled, start, end, image }.
+export function activeRestSchedule(rest, d = new Date()) {
+  const daily = {
+    enabled: rest?.enabled !== false,
+    start: rest?.start,
+    end: rest?.end,
+    image: rest?.image,
+  }
+  const f = rest?.friday
+  if (d.getDay() === 5 && f && typeof f === 'object' && f.enabled !== false) {
+    const sched = {
+      enabled: true,
+      start: f.start ?? daily.start,
+      end: f.end ?? daily.end,
+      image: f.image ?? daily.image,
+    }
+    // Override Jumat tanpa gambar = ikut Harian (jangan menekan jadwal
+    // harian secara diam-diam).
+    if (sched.image) return sched
+  }
+  return daily
+}
+
+// true bila saat ini masuk jam istirahat (sadar-hari: Jumat bisa punya
+// jadwal + gambar sendiri via rest.friday).
 // Mendukung rentang lewat tengah malam (mis. 22:00–06:00).
 export function isRestNow(rest, d = new Date()) {
-  if (!rest || rest.enabled === false) return false
-  if (!rest.image) return false
-  const s = timeToMinutes(rest.start)
-  const e = timeToMinutes(rest.end)
-  if (s == null || e == null || s === e) return false
+  const s = activeRestSchedule(rest, d)
+  if (!s || s.enabled === false) return false
+  if (!s.image) return false
+  const start = timeToMinutes(s.start)
+  const e = timeToMinutes(s.end)
+  if (start == null || e == null || start === e) return false
   const cur = d.getHours() * 60 + d.getMinutes()
-  return s < e ? (cur >= s && cur < e) : (cur >= s || cur < e)
+  return start < e ? (cur >= start && cur < e) : (cur >= start || cur < e)
 }
 
 export function timeDiffLabel(from, to = new Date()) {

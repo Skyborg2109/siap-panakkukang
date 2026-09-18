@@ -107,7 +107,26 @@ export async function updateDisplayImage(id, payload) {
 const REST_KEY = 'siap_rest'
 
 export function defaultRestConfig() {
-  return { enabled: false, start: '12:00', end: '13:00', image: '' }
+  return {
+    enabled: false,
+    start: '12:00',
+    end: '13:00',
+    image: '',
+    friday: { enabled: true, start: '11:30', end: '13:30', image: '' },
+  }
+}
+
+// Normalisasi config lama (tanpa `friday`) agar aman dipakai UI sadar-hari.
+function normalizeRestConfig(raw) {
+  const base = { ...defaultRestConfig(), ...(raw || {}) }
+  const f = base.friday && typeof base.friday === 'object' ? base.friday : {}
+  base.friday = {
+    enabled: f.enabled !== false,
+    start: String(f.start || '11:30'),
+    end: String(f.end || '13:30'),
+    image: String(f.image || ''),
+  }
+  return base
 }
 
 export async function getRestConfig() {
@@ -116,24 +135,31 @@ export async function getRestConfig() {
     if (error) throw error
     if (!data) return defaultRestConfig()
     try {
-      return { ...defaultRestConfig(), ...JSON.parse(data.content || '{}') }
+      return normalizeRestConfig(JSON.parse(data.content || '{}'))
     } catch {
       return defaultRestConfig()
     }
   }
   try {
     const raw = localStorage.getItem(REST_KEY)
-    if (raw) return { ...defaultRestConfig(), ...JSON.parse(raw) }
+    if (raw) return normalizeRestConfig(JSON.parse(raw))
   } catch { /* abaikan */ }
   return defaultRestConfig()
 }
 
 export async function saveRestConfig(payload) {
+  const friday = payload.friday && typeof payload.friday === 'object' ? payload.friday : {}
   const value = {
     enabled: payload.enabled !== false,
     start: String(payload.start || '12:00'),
     end: String(payload.end || '13:00'),
     image: String(payload.image || ''),
+    friday: {
+      enabled: friday.enabled !== false,
+      start: String(friday.start || '11:30'),
+      end: String(friday.end || '13:30'),
+      image: String(friday.image || ''),
+    },
   }
   if (isSupabaseConfigured) {
     await assertSupabaseSession()

@@ -1,17 +1,11 @@
 import { useEffect, useState } from 'react'
-import { LayoutDashboard, History, Settings } from 'lucide-react'
 import { DashboardLayout } from '../../layouts/layouts.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { updateMyAccount } from '../../services/authService.js'
 import { getStats } from '../../services/queueService.js'
 import { Field } from '../../components/ui/ui.jsx'
 import { adminMenu } from '../admin/AdminShell.jsx'
-
-const petugasMenu = [
-  { to: '/petugas/queue', label: 'Panel Pelayanan', icon: <LayoutDashboard size={17} /> },
-  { to: '/petugas/history', label: 'Riwayat Hari Ini', icon: <History size={17} /> },
-  { to: '/petugas/profile', label: 'Pengaturan Profil', icon: <Settings size={17} /> },
-]
+import { petugasMenu } from './petugasMenu.jsx'
 
 export default function PetugasProfile() {
   const { user, setUser } = useAuthStore()
