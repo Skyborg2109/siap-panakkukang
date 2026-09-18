@@ -370,12 +370,21 @@ export default function Display() {
           )}
           <div className="text-center shrink-0 relative">
             {/* Sapaan hanya di slide berisi foto petugas (terletak di atas);
-                slide gambar tunggal alur tampil bersih tanpa teks. */}
+                slide gambar tunggal alur tampil bersih tanpa teks.
+                Di slide pimpinan dipakai versi ringkas agar foto
+                Camat & Sekcam tetap besar. */}
             {current?.kind !== 'photo' && (
+              current?.category === 'staff-kecamatan' ? (
+              <>
+                <div className="text-xl md:text-2xl font-extrabold text-white tracking-wide">Selamat Datang</div>
+                <div className="text-sm md:text-base font-bold text-white mt-0.5">Di Kantor Kecamatan Panakkukang</div>
+              </>
+              ) : (
               <>
                 <div className="text-2xl md:text-3xl font-extrabold text-white tracking-wide">Selamat Datang</div>
                 <div className="text-base md:text-xl font-bold text-white mt-1">Di Kantor Kecamatan Panakkukang</div>
               </>
+              )
             )}
           </div>
           <div key={`body-${slide}`} className="animate-slide-in mt-3 flex-1 min-h-0 overflow-hidden flex flex-col relative">
@@ -397,8 +406,31 @@ export default function Display() {
                   const isPimpinan = current.category === 'staff-kecamatan' && current.items.length >= 3
                   const isSide = isPimpinan && (i === 0 || i === current.items.length - 1)
                   const isMiddle = isPimpinan && !isSide
+                  // Foto Camat & Sekcam: nama + jabatan menempel di atas
+                  // foto (overlay) agar seluruh tinggi panel dipakai foto.
+                  if (isSide) {
+                    return (
+                    <figure key={im.id} className="flex-[1.65] min-w-0 min-h-0 flex flex-col items-center overflow-hidden relative">
+                      <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
+                        <img
+                          src={im.url || im.file_path}
+                          alt={im.title || im.name}
+                          className="max-h-full max-w-full object-contain rounded-xl"
+                        />
+                      </div>
+                      {/* Tanpa kotak bayangan — hanya teks berbayang tipis agar
+                          tak ada garis potongan gradasi di atas foto. */}
+                      <div className="absolute bottom-0 inset-x-0 pb-2.5 px-2 text-center pointer-events-none">
+                        {!!(im.title || im.name) && (
+                          <div className="font-bold text-base md:text-lg text-white truncate drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">{im.title || im.name}</div>
+                        )}
+                        {!!im.description && <div className="text-white text-xs md:text-sm mt-0.5 whitespace-pre-line leading-snug line-clamp-2 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">{String(im.description).replace(/\\n/g, '\n')}</div>}
+                      </div>
+                    </figure>
+                    )
+                  }
                   return (
-                  <figure key={im.id} className={`${isSide ? 'flex-[1.65]' : isMiddle ? 'flex-[0.75]' : 'flex-1'} min-w-0 min-h-0 flex flex-col items-center overflow-hidden`}>
+                  <figure key={im.id} className={`${isMiddle ? 'flex-[0.75]' : 'flex-1'} min-w-0 min-h-0 flex flex-col items-center overflow-hidden`}>
                     {/* Gambar tengah pimpinan (logo + jam operasional) diratakan
                         ke bawah agar menutupi pintu pada foto background. */}
                     <div className={`flex-1 min-h-0 w-full flex justify-center overflow-hidden ${isMiddle ? 'items-end' : 'items-center'}`}>
@@ -409,7 +441,7 @@ export default function Display() {
                       />
                     </div>
                     {!!(im.title || im.name) && (
-                      <figcaption className={`font-bold mt-1.5 truncate max-w-full shrink-0 ${isSide ? 'text-base md:text-lg' : 'text-sm md:text-base'}`}>{im.title || im.name}</figcaption>
+                      <figcaption className="font-bold text-sm md:text-base mt-1.5 truncate max-w-full shrink-0">{im.title || im.name}</figcaption>
                     )}
                     {!!im.description && <div className="text-slate-300 text-xs md:text-sm mt-1 max-w-full shrink-0 text-center whitespace-pre-line leading-snug line-clamp-4">{String(im.description).replace(/\\n/g, '\n')}</div>}
                   </figure>
