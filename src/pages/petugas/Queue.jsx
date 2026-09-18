@@ -10,7 +10,7 @@ import {
   parseQueueNumbers,
 } from '../../services/queueService.js'
 import { getServices } from '../../services/masterService.js'
-import { callKKCase, sendBroadcast, getRestConfig, saveRestConfig, uploadRestImage, deleteRestImage, imageUrl } from '../../services/displayService.js'
+import { callKKCase, sendBroadcast, getLatestKK, getLatestBroadcast, getRestConfig, saveRestConfig, uploadRestImage, deleteRestImage, getServerResetAt, imageUrl } from '../../services/displayService.js'
 import { isSupabaseConfigured } from '../../lib/supabase.js'
 import { quotaFor, isNameCallService, isSingleCallService } from '../../lib/constants.js'
 import { hasRealName, getTodayResetAt, markCallLock, callLockRemaining } from '../../utils/queue.js'
@@ -89,6 +89,17 @@ export default function PetugasQueue() {
   const [kkNote, setKkNote] = useState('')
   const [bcOpen, setBcOpen] = useState(false)
   const [bcMessage, setBcMessage] = useState('')
+  // Error kirim KK/broadcast wajib tampil DI DALAM modal (seperti specErr) —
+  // banner flash() tertutup overlay modal sehingga tak terlihat.
+  const [kkErr, setKkErr] = useState(null)
+  const [bcErr, setBcErr] = useState(null)
+  // created_at pengumuman terakhir (KK/broadcast): ikut mengunci panggilan
+  // nomor karena memakai rangkaian TTS yang sama di Display TV.
+  const [kkAt, setKkAt] = useState(null)
+  const [bcAt, setBcAt] = useState(null)
+  // Penanda ronde reset dari SERVER (display_contents key='reset') — digabung
+  // dengan siap_reset_at lokal agar reset dari perangkat lain ikut berlaku.
+  const [serverResetAt, setServerResetAt] = useState(null)
   const [specOpen, setSpecOpen] = useState(null)
   const [specificNum, setSpecificNum] = useState('')
   const [directName, setDirectName] = useState('')
@@ -124,21 +135,34 @@ export default function PetugasQueue() {
   const dismissNotice = () => { clearTimeout(noticeTimer.current); setNotice(null) }
   useEffect(() => () => clearTimeout(noticeTimer.current), [])
 
+  // Penanda ronde reset: yang terbaru di antara server & lokal menang
+  // (string ISO terurut kronologis sehingga cukup ambil yang terbesar).
+  const roundSince = () => {
+    const cands = [serverResetAt, getTodayResetAt()].filter(Boolean).sort()
+    return cands.length ? cands[cands.length - 1] : null
+  }
+
   // Kuota kupon fisik per layanan per hari — dihitung dari baris yang terbit
   // SETELAH reset terakhir hari ini, agar progress bar ikut nol saat reset.
   const issuedOf = (serviceId) => {
-    const since = getTodayResetAt()
+    const since = roundSince()
     return queues.filter((q) => q.service_id === serviceId && (!since || (q.created_at || '') >= since)).length
   }
 
   const refresh = useCallback(async () => {
     try {
-      const [q, s] = await Promise.all([
+      const [q, s, latestKK, latestBc, srvReset] = await Promise.all([
         withTimeout(getTodayQueueList()),
         withTimeout(getServices()),
+        withTimeout(getLatestKK().catch(() => null)),
+        withTimeout(getLatestBroadcast().catch(() => null)),
+        withTimeout(getServerResetAt().catch(() => null)),
       ])
       setQueues(q)
       setServices(s)
+      setKkAt(latestKK?.created_at || null)
+      setBcAt(latestBc?.created_at || null)
+      setServerResetAt(srvReset)
       setLoadError(null)
     } catch (e) {
       console.error(e)
@@ -217,9 +241,11 @@ export default function PetugasQueue() {
 
   // Kunci anti-tumpang pengumuman: tolak panggilan baru (siapa pun, termasuk
   // diri sendiri) bila ada panggilan yang pengumumannya kemungkinan masih
-  // berbunyi — lihat callLockRemaining (kunci instan + called_at server).
+  // berbunyi — lihat callLockRemaining (kunci instan + called_at server +
+  // created_at KK/broadcast terbaru, karena ketiganya memakai rangkaian
+  // TTS yang sama di Display TV dan saling membatalkan bila tumpang).
   const callLockMsg = () => {
-    const remaining = callLockRemaining(queues)
+    const remaining = callLockRemaining(queues, [kkAt, bcAt])
     return remaining > 0 ? `Sedang ada pemanggilan berlangsung. Silakan coba lagi ±${remaining} detik.` : null
   }
 
@@ -384,22 +410,30 @@ export default function PetugasQueue() {
 
   const handleKK = async (e) => {
     e.preventDefault()
-    if (kkName.trim().length < 3) return flash('Nama minimal 3 huruf.', 'warn')
+    if (kkName.trim().length < 3) { setKkErr('Nama minimal 3 huruf.'); return }
+    // Jangan timpa panggilan nomor yang pengumumannya masih berbunyi.
+    const lockMsg = callLockMsg()
+    if (lockMsg) { setKkErr(lockMsg); return }
     try {
       await withTimeout(callKKCase({ name: kkName.trim(), note: kkNote.trim() }), 20000)
-      setKkOpen(false); setKkName(''); setKkNote('')
+      markCallLock()
+      setKkOpen(false); setKkName(''); setKkNote(''); setKkErr(null)
       flash('Panggilan KK dikirim ke Display TV + audio.')
-    } catch (err) { flash(errText(err), 'warn') }
+    } catch (err) { const m = errText(err); setKkErr(m); flash(m, 'warn') }
   }
 
   // Pengumuman spontan ke masyarakat (banner + audio di Display TV)
   const handleBroadcast = async (e) => {
     e.preventDefault()
+    // Jangan timpa panggilan nomor yang pengumumannya masih berbunyi.
+    const lockMsg = callLockMsg()
+    if (lockMsg) { setBcErr(lockMsg); return }
     try {
       await withTimeout(sendBroadcast({ message: bcMessage }), 20000)
-      setBcOpen(false); setBcMessage('')
+      markCallLock()
+      setBcOpen(false); setBcMessage(''); setBcErr(null)
       flash('Pengumuman dikirim ke Display TV + audio.')
-    } catch (err) { flash(errText(err), 'warn') }
+    } catch (err) { const m = errText(err); setBcErr(m); flash(m, 'warn') }
   }
 
   const openEdit = (q) => {
@@ -417,7 +451,15 @@ export default function PetugasQueue() {
   const handleReset = async () => {
     if (!window.confirm('Reset antrean hari ini? Antrean yang masih aktif (menunggu/dipanggil/dilayani) akan ditandai Dilewati. Riwayat hari ini tetap tersimpan.')) return
     setBusy('reset')
-    try { await withTimeout(resetToday(), 20000); setSelected({}); await refresh() } catch (e) { flash(errText(e), 'warn') }
+    try {
+      const at = await withTimeout(resetToday(), 20000)
+      // Penanda ronde baru langsung dipakai lokal (tanpa menunggu polling),
+      // agar quota bar + chip ikut nol seketika di perangkat ini juga.
+      if (at) setServerResetAt(at)
+      setSelected({})
+      await refresh()
+      flash('Antrean hari ini direset. Perangkat petugas lain ikut tersinkron otomatis.')
+    } catch (e) { flash(errText(e), 'warn') }
     finally { setBusy(null) }
   }
 
@@ -661,14 +703,15 @@ export default function PetugasQueue() {
               // aktif (CALLED/SERVING) + yang sudah selesai (COMPLETED), agar
               // semua nomor yang pernah dipanggil tampil sebagai chip.
               // SKIPPED dikecualikan, DAN hanya baris yang tersentuh setelah
-              // reset terakhir hari ini (create/called/update >= siap_reset_at)
-              // yang tampil — resetToday() hanya menandai WAITING/CALLED/SERVING
-              // jadi SKIPPED (COMPLETED ikut tersisa), sehingga tanpa filter
-              // ronde ini chip COMPLETED tetap tampil setelah reset.
+              // reset terakhir hari ini (create/called/update >= penanda ronde
+              // server+lokal) yang tampil — resetToday() hanya menandai
+              // WAITING/CALLED/SERVING jadi SKIPPED (COMPLETED ikut tersisa),
+              // sehingga tanpa filter ronde ini chip COMPLETED tetap tampil
+              // setelah reset.
               // Nomor lama tetap bisa dipanggil ulang manual via "Panggil Nomor";
               // begitu dipanggil ulang (called_at/updated_at baru) chip-nya
               // muncul lagi di ronde ini.
-              const resetSince = getTodayResetAt()
+              const resetSince = roundSince()
               const inRound = (q) => !resetSince
                 || (q.created_at || '') >= resetSince
                 || (q.called_at || '') >= resetSince
@@ -682,7 +725,7 @@ export default function PetugasQueue() {
                     <span className={`badge ${c.badge} text-white !text-[10px] font-mono shrink-0`}>{svc.prefix}</span>
                     <span className="text-[13px] font-semibold text-slate-700 flex-1 truncate">{svc.name}</span>
                   </div>
-                  <div className="mt-1.5 flex items-center gap-2" title={getTodayResetAt() ? `Kupon terbit ${issued} dari ${quota} (ronde ini, setelah reset)` : `Kupon terbit ${issued} dari ${quota} hari ini`}>
+                  <div className="mt-1.5 flex items-center gap-2" title={roundSince() ? `Kupon terbit ${issued} dari ${quota} (ronde ini, setelah reset)` : `Kupon terbit ${issued} dari ${quota} hari ini`}>
                     <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                       <div className={`h-full rounded-full ${full ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, (issued / quota) * 100)}%` }} />
                     </div>
@@ -716,10 +759,10 @@ export default function PetugasQueue() {
               )
             })}
             <div className="card p-4 space-y-3">
-              <button onClick={() => setKkOpen(true)} className="btn w-full !py-2.5 !rounded-lg !text-[13px] bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 font-semibold">
+              <button onClick={() => { dismissNotice(); setKkOpen(true); setKkErr(null) }} className="btn w-full !py-2.5 !rounded-lg !text-[13px] bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 font-semibold">
                 <FileText size={15} /> Kasus KK / Konsultasi
               </button>
-              <button onClick={() => setBcOpen(true)} className="btn w-full !py-2.5 !rounded-lg !text-[13px] bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 font-semibold">
+              <button onClick={() => { dismissNotice(); setBcOpen(true); setBcErr(null) }} className="btn w-full !py-2.5 !rounded-lg !text-[13px] bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 font-semibold">
                 <Megaphone size={15} /> Pengumuman ke Masyarakat
               </button>
             </div>
@@ -869,9 +912,12 @@ export default function PetugasQueue() {
       </Modal>
 
       {/* Modal KK */}
-      <Modal open={kkOpen} onClose={() => setKkOpen(false)} title="Panggil Kasus KK (tanpa nomor)">
+      <Modal open={kkOpen} onClose={() => { setKkOpen(false); setKkErr(null) }} title="Panggil Kasus KK (tanpa nomor)">
         <form onSubmit={handleKK} className="space-y-3">
           <p className="text-sm text-slate-500">Untuk berkas KK belum lengkap / konsultasi ulang (BR-09: KK tidak memakai nomor antrean).</p>
+          {kkErr && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-[13px] font-semibold text-rose-700">{kkErr}</div>
+          )}
           <Field label="Nama pada KK *">
             <input className="input" value={kkName} onChange={(e) => setKkName(e.target.value)} placeholder="cth: Budi Santoso" />
           </Field>
@@ -883,9 +929,12 @@ export default function PetugasQueue() {
       </Modal>
 
       {/* Modal pengumuman spontan ke masyarakat */}
-      <Modal open={bcOpen} onClose={() => setBcOpen(false)} title="Pengumuman ke Masyarakat">
+      <Modal open={bcOpen} onClose={() => { setBcOpen(false); setBcErr(null) }} title="Pengumuman ke Masyarakat">
         <form onSubmit={handleBroadcast} className="space-y-3">
           <p className="text-sm text-slate-500">Tampil sebagai banner + dibacakan audio di Display TV (±20 detik). Untuk info dadakan, mis. jeda pelayanan atau imbauan.</p>
+          {bcErr && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-[13px] font-semibold text-rose-700">{bcErr}</div>
+          )}
           <Field label="Isi Pengumuman *">
             <textarea className="input" rows={3} value={bcMessage} onChange={(e) => setBcMessage(e.target.value)} placeholder="cth: Pelayanan IKD jeda 15 menit, harap menunggu." maxLength={300} />
           </Field>

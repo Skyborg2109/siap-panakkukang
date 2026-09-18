@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured, assertSupabaseSession, friendlySupabase
 import { todayKey, makeQueueNumber } from '../utils/date.js'
 import { quotaFor } from '../lib/constants.js'
 import { createLocalQueue, getTodayQueues, updateLocalQueue, getAllLocalQueues, saveLocalQueue, markResetNow } from '../utils/queue.js'
+import { saveServerResetAt } from './displayService.js'
 
 // Ambil nomor antrean — via RPC Supabase (anti-duplikat + cek kuota) atau local fallback
 export async function takeQueue({ service, name, nik }) {
@@ -282,25 +283,31 @@ export async function callDirectMany({ service, raw, name }) {
 // Reset antrean hari ini TANPA menghapus riwayat: antrean yang masih aktif
 // (WAITING/CALLED/SERVING) ditandai SKIPPED sehingga panel & Display bersih,
 // sementara seluruh baris hari ini tetap tersimpan dan tampil di Riwayat.
+// Mengembalikan timestamp ISO penanda ronde (dipakai quota bar + chip
+// "sudah dipanggil"). Penanda ikut disimpan di SERVER (display_contents
+// key='reset') agar reset dari satu perangkat berlaku di semua perangkat —
+// siap_reset_at localStorage saja tidak sampai ke browser lain.
 const ACTIVE_STATUSES = ['WAITING', 'CALLED', 'SERVING']
 
 export async function resetToday() {
   if (isSupabaseConfigured) {
+    await assertSupabaseSession()
+    const now = new Date().toISOString()
     const { error } = await supabase
       .from('queues')
       .update({ status: 'SKIPPED', updated_at: new Date().toISOString() })
       .eq('queue_date', todayKey())
       .in('status', ACTIVE_STATUSES)
     if (error) throw error
+    await saveServerResetAt(now)
     markResetNow()
-    return true
+    return now
   }
   const { getAllLocalQueues, updateLocalQueue } = await import('../utils/queue.js')
   getAllLocalQueues()
     .filter((q) => q.queue_date === todayKey() && ACTIVE_STATUSES.includes(q.status))
     .forEach((q) => updateLocalQueue(q.id, { status: 'SKIPPED' }))
-  markResetNow()
-  return true
+  return markResetNow()
 }
 
 // Info referensi antrean per layanan (untuk konfirmasi hapus layanan di admin)

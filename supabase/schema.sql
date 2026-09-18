@@ -509,6 +509,14 @@ create policy "staff manage rest content" on public.display_contents
   for all using (key = 'rest' and public.current_role() in ('PETUGAS','ADMIN'))
   with check (key = 'rest' and public.current_role() in ('PETUGAS','ADMIN'));
 
+-- Petugas: kelola baris display_contents key='reset' (penanda ronde reset
+-- harian — ditulis saat "Reset Antrean Hari Ini" agar quota bar + chip
+-- "sudah dipanggil" ikut nol di SEMUA perangkat, bukan cuma per browser).
+drop policy if exists "staff manage reset content" on public.display_contents;
+create policy "staff manage reset content" on public.display_contents
+  for all using (key = 'reset' and public.current_role() in ('PETUGAS','ADMIN'))
+  with check (key = 'reset' and public.current_role() in ('PETUGAS','ADMIN'));
+
 -- Petugas: upload / ubah / hapus gambar istirahat (hanya folder rest/...).
 drop policy if exists "staff insert rest image" on storage.objects;
 create policy "staff insert rest image" on storage.objects

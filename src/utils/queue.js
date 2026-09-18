@@ -145,7 +145,11 @@ export function markCallLock() {
 // + `called_at` terbaru baris CALLED/SERVING (lintas perangkat via polling;
 // buta maks ~3 dtk + selisih jam perangkat). Dipisah sebagai fungsi murni
 // modul (tanpa Date.now di badan render) agar lolos aturan react/purity.
-export function callLockRemaining(rows = []) {
+// `extraTimes`: daftar timestamp ISO tambahan yang ikut mengunci — dipakai
+// panel petugas untuk created_at KK/broadcast terbaru, karena pengumuman
+// spontan itu juga memakai rangkaian TTS yang sama (saling membatalkan
+// bila tumpang dengan panggilan nomor).
+export function callLockRemaining(rows = [], extraTimes = []) {
   let remaining = 0
   const lock = otherCallInProgress()
   if (lock) remaining = Math.max(remaining, lock.remainingSec)
@@ -154,6 +158,11 @@ export function callLockRemaining(rows = []) {
   for (const q of rows || []) {
     if (q?.status !== 'CALLED' && q?.status !== 'SERVING') continue
     const t = new Date(q.called_at || q.created_at || 0).getTime()
+    if (Number.isFinite(t) && t > latest) latest = t
+  }
+  for (const iso of extraTimes || []) {
+    if (!iso) continue
+    const t = new Date(iso).getTime()
     if (Number.isFinite(t) && t > latest) latest = t
   }
   if (latest) {

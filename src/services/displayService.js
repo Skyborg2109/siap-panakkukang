@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured, assertSupabaseSession, friendlySupabaseError } from '../lib/supabase.js'
+import { todayKey } from '../utils/date.js'
 import { getLocalKK, getLocalBroadcasts } from '../utils/queue.js'
 
 export async function getDisplayImages() {
@@ -168,6 +169,39 @@ export async function deleteRestImage(filePath) {
     return true
   }
   return true
+}
+
+// ---- Penanda ronde reset harian (lintas perangkat) ----
+// Reset di satu browser harus ikut menolkan quota bar + chip "sudah dipanggil"
+// di browser lain — siap_reset_at di localStorage tidak sampai ke sana.
+// Disimpan sebagai SATU baris display_contents key='reset': content = JSON { at }.
+// Butuh policy "staff manage reset content" (schema.sql terbaru).
+export async function getServerResetAt() {
+  if (!isSupabaseConfigured) return null
+  try {
+    const { data, error } = await supabase.from('display_contents').select('content').eq('key', 'reset').maybeSingle()
+    if (error || !data) return null
+    const at = JSON.parse(data.content || '{}')?.at
+    if (!at || Number.isNaN(new Date(at).getTime())) return null
+    // Hanya berlaku bila terjadi hari ini (kalender lokal) — cermin getTodayResetAt.
+    return todayKey(new Date(at)) === todayKey() ? at : null
+  } catch {
+    return null
+  }
+}
+
+export async function saveServerResetAt(iso) {
+  const at = iso || new Date().toISOString()
+  if (!isSupabaseConfigured) return at
+  await assertSupabaseSession()
+  const { error } = await supabase.from('display_contents').upsert({ key: 'reset', title: 'Penanda Reset Harian', content: JSON.stringify({ at }) })
+  if (error) {
+    if (error.code === '42501' || /row-level security/i.test(error.message || '')) {
+      throw new Error("Penanda reset gagal disimpan (RLS display_contents). Database memakai schema lama — jalankan supabase/schema.sql terbaru di Supabase SQL Editor (policy 'staff manage reset content'), lalu coba lagi.")
+    }
+    throw friendlySupabaseError(error)
+  }
+  return at
 }
 
 // KK terbaru hari ini untuk Display TV (banner + audio)
