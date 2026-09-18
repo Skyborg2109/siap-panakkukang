@@ -370,8 +370,10 @@ export default function Display() {
           )}
           <div className="text-center shrink-0 relative">
             {/* Sapaan hanya di slide berisi foto petugas (terletak di atas);
-                slide gambar tunggal alur tampil bersih tanpa teks. */}
-            {current?.kind !== 'photo' && (
+                slide gambar tunggal alur tampil bersih tanpa teks.
+                Slide pimpinan (Camat & Sekcam) juga tanpa sapaan agar ruang
+                vertikal maksimal untuk foto kiri-kanan yang diperbesar. */}
+            {current?.kind !== 'photo' && current?.category !== 'staff-kecamatan' && (
               <>
                 <div className="text-2xl md:text-3xl font-extrabold text-white tracking-wide">Selamat Datang</div>
                 <div className="text-base md:text-xl font-bold text-white mt-1">Di Kantor Kecamatan Panakkukang</div>
@@ -390,9 +392,15 @@ export default function Display() {
                 />
               </div>
             ) : current?.kind === 'photos' ? (
+              // Slide pimpinan (Camat & Sekcam di kiri-kanan): foto sisi
+              // diberi porsi flex jauh lebih besar, tengah mengecil.
               <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
-                {current.items.map((im) => (
-                  <figure key={im.id} className="flex-1 min-w-0 min-h-0 flex flex-col items-center overflow-hidden">
+                {current.items.map((im, i) => {
+                  const isPimpinan = current.category === 'staff-kecamatan' && current.items.length >= 3
+                  const isSide = isPimpinan && (i === 0 || i === current.items.length - 1)
+                  const isMiddle = isPimpinan && !isSide
+                  return (
+                  <figure key={im.id} className={`${isSide ? 'flex-[1.65]' : isMiddle ? 'flex-[0.75]' : 'flex-1'} min-w-0 min-h-0 flex flex-col items-center overflow-hidden`}>
                     <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
                       <img
                         src={im.url || im.file_path}
@@ -401,11 +409,12 @@ export default function Display() {
                       />
                     </div>
                     {!!(im.title || im.name) && (
-                      <figcaption className="font-bold text-sm md:text-base mt-1.5 truncate max-w-full shrink-0">{im.title || im.name}</figcaption>
+                      <figcaption className={`font-bold mt-1.5 truncate max-w-full shrink-0 ${isSide ? 'text-base md:text-lg' : 'text-sm md:text-base'}`}>{im.title || im.name}</figcaption>
                     )}
                     {!!im.description && <div className="text-slate-300 text-xs md:text-sm mt-1 max-w-full shrink-0 text-center whitespace-pre-line leading-snug line-clamp-4">{String(im.description).replace(/\\n/g, '\n')}</div>}
                   </figure>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div className="flex-1 flex flex-col justify-center">
