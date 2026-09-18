@@ -245,6 +245,10 @@ export default function Display() {
   const tickerLoop = Array(4).fill(ticker).join('  •••  ')
 
   const current = slides[slide % slides.length]
+  // Slide pimpinan: bingkai baris & badan dibuka (overflow-visible) agar
+  // foto Camat & Sekcam yang diperbesar tampil utuh sampai tepi card —
+  // panel terluar tetap overflow-hidden sebagai batas akhirnya.
+  const isPimpinanSlide = current?.kind === 'photos' && current?.category === 'staff-kecamatan'
 
   // Navigasi manual: panah kiri/kanan + dot melompat ke slide mana pun,
   // auto-slide 15 dtk lanjut dari posisi terpilih.
@@ -387,7 +391,7 @@ export default function Display() {
               )
             )}
           </div>
-          <div key={`body-${slide}`} className="animate-slide-in mt-3 flex-1 min-h-0 overflow-hidden flex flex-col relative">
+          <div key={`body-${slide}`} className={`animate-slide-in mt-3 flex-1 min-h-0 flex flex-col relative ${isPimpinanSlide ? 'overflow-visible' : 'overflow-hidden'}`}>
             {current?.kind === 'photo' ? (
               // Foto tunggal (alur): gambar utuh tanpa crop, di tengah antara
               // bar sapaan atas dan bawah — tidak ada teks menutupinya.
@@ -401,21 +405,27 @@ export default function Display() {
             ) : current?.kind === 'photos' ? (
               // Slide pimpinan (Camat & Sekcam di kiri-kanan): foto sisi
               // diberi porsi flex jauh lebih besar, tengah mengecil.
-              <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
+              <div className={`flex-1 min-h-0 flex gap-3 ${isPimpinanSlide ? 'overflow-visible' : 'overflow-hidden'}`}>
                 {current.items.map((im, i) => {
                   const isPimpinan = current.category === 'staff-kecamatan' && current.items.length >= 3
                   const isSide = isPimpinan && (i === 0 || i === current.items.length - 1)
                   const isMiddle = isPimpinan && !isSide
-                  // Foto Camat & Sekcam: nama + jabatan menempel di atas
-                  // foto (overlay) agar seluruh tinggi panel dipakai foto.
+                  // Foto Camat & Sekcam: tampil UTUH dan besar — bingkai dibuat
+                  // tembus (overflow-visible) sehingga zoom tidak terpotong;
+                  // arah zoom keluar (kiri ke kiri, kanan ke kanan) agar tidak
+                  // menutupi gambar tengah yang sudah pas. Kelebihan zoom ke
+                  // atas tertampung di area sapaan (teks sapaan di tengah,
+                  // foto di tepi) dan tepi panel.
                   if (isSide) {
+                    const origin = i === 0 ? 'origin-bottom-right' : 'origin-bottom-left'
                     return (
-                    <figure key={im.id} className="flex-[1.65] min-w-0 min-h-0 flex flex-col items-center overflow-hidden relative">
-                      <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
+                    <figure key={im.id} className="flex-[1.65] min-w-0 min-h-0 flex flex-col items-center overflow-visible relative z-[1]">
+                      <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-visible">
+                        {/* Ubah angka 1.12 untuk mengatur besarnya. */}
                         <img
                           src={im.url || im.file_path}
                           alt={im.title || im.name}
-                          className="max-h-full max-w-full object-contain rounded-xl"
+                          className={`max-h-full max-w-full object-contain rounded-xl scale-[1.12] ${origin}`}
                         />
                       </div>
                       {/* Tanpa kotak bayangan — hanya teks berbayang tipis agar
@@ -430,7 +440,7 @@ export default function Display() {
                     )
                   }
                   return (
-                  <figure key={im.id} className={`${isMiddle ? 'flex-[0.75]' : 'flex-1'} min-w-0 min-h-0 flex flex-col items-center overflow-hidden`}>
+                  <figure key={im.id} className={`${isMiddle ? 'flex-[2]' : 'flex-1'} min-w-0 min-h-0 flex flex-col items-center overflow-hidden`}>
                     {/* Gambar tengah pimpinan (logo + jam operasional) diratakan
                         ke bawah agar menutupi pintu pada foto background. */}
                     <div className={`flex-1 min-h-0 w-full flex justify-center overflow-hidden ${isMiddle ? 'items-end' : 'items-center'}`}>
