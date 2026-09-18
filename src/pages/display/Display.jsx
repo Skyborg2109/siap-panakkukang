@@ -370,10 +370,8 @@ export default function Display() {
           )}
           <div className="text-center shrink-0 relative">
             {/* Sapaan hanya di slide berisi foto petugas (terletak di atas);
-                slide gambar tunggal alur tampil bersih tanpa teks.
-                Slide pimpinan (Camat & Sekcam) juga tanpa sapaan agar ruang
-                vertikal maksimal untuk foto kiri-kanan yang diperbesar. */}
-            {current?.kind !== 'photo' && current?.category !== 'staff-kecamatan' && (
+                slide gambar tunggal alur tampil bersih tanpa teks. */}
+            {current?.kind !== 'photo' && (
               <>
                 <div className="text-2xl md:text-3xl font-extrabold text-white tracking-wide">Selamat Datang</div>
                 <div className="text-base md:text-xl font-bold text-white mt-1">Di Kantor Kecamatan Panakkukang</div>
@@ -401,7 +399,9 @@ export default function Display() {
                   const isMiddle = isPimpinan && !isSide
                   return (
                   <figure key={im.id} className={`${isSide ? 'flex-[1.65]' : isMiddle ? 'flex-[0.75]' : 'flex-1'} min-w-0 min-h-0 flex flex-col items-center overflow-hidden`}>
-                    <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
+                    {/* Gambar tengah pimpinan (logo + jam operasional) diratakan
+                        ke bawah agar menutupi pintu pada foto background. */}
+                    <div className={`flex-1 min-h-0 w-full flex justify-center overflow-hidden ${isMiddle ? 'items-end' : 'items-center'}`}>
                       <img
                         src={im.url || im.file_path}
                         alt={im.title || im.name}
