@@ -288,7 +288,6 @@ revoke all on function public.take_queue_number(uuid, text, text, date) from pub
 grant execute on function public.take_queue_number(uuid, text, text, date) to anon, authenticated;
 revoke all on function public.call_direct_number(uuid, int, text, timestamptz, date) from public;
 grant execute on function public.call_direct_number(uuid, int, text, timestamptz, date) to authenticated;
-grant execute on function public.current_role() to anon, authenticated;
 
 -- RPC: update_own_name — ubah nama tampilan sendiri (halaman Profil).
 -- SECURITY DEFINER agar petugas bisa ubah full_name miliknya TANPA policy
@@ -352,6 +351,7 @@ as $$
   -- jadi baris profiles ber-role huruf kecil ('petugas') tetap lolos.
   select upper(role) from public.profiles where id = auth.uid()
 $$;
+grant execute on function public.current_role() to anon, authenticated;
 
 -- Publik (masyarakat, tanpa login): baca master aktif + buat antrean
 drop policy if exists "public read services" on public.services;
